@@ -267,7 +267,7 @@ public:
 	/**
 	 * Get Unreal rotation from a DIS entity state PDU
 	 * @param EntityStatePdu The DIS PDU struct indicating the current state of the DIS entity
-	 * @param OriginNorthEastDown The vectors representing the north, east, and down directions in the unreal level
+	 * @param GeoReferencingSystem The GeoReferencing Subsystem reference.
 	 * @param EntityRotation The Heading (yaw), Pitch, and Roll calculated from the given entity state
 	 */
 	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
@@ -291,4 +291,52 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
 		static void GetEntityUnrealLocationAndOrientation(const FEntityStatePDU EntityStatePdu, AGeoReferencingSystem* GeoReferencingSystem, FVector& EntityLocation, FRotator& EntityRotation);
+
+	/**
+	 * Gets the North, East, and Down vector representation of the given Unreal location
+	 * @param UnrealLocation The location in Unreal units
+	 * @param GeoReferencingSystem The GeoReferencing Subsystem reference.
+	 * @param NorthEastDownVectors The North, East, and Down vectors for the given unreal location
+	 */
+	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
+		static void GetNorthEastDownVectorsFromUnrealLocation(FVector UnrealLocation, AGeoReferencingSystem* GeoReferencingSystem, FNorthEastDown& NorthEastDownVectors);
+
+	/**
+	 * Gets the East, North, and Up vector representation of the given Unreal location
+	 * @param UnrealLocation The location in Unreal units
+	 * @param GeoReferencingSystem The GeoReferencing Subsystem reference.
+	 * @param EastNorthUpVectors The East, North, and Up vectors for the given unreal location
+	 */
+	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
+		static void GetEastNorthUpVectorsFromUnrealLocation(FVector UnrealLocation, AGeoReferencingSystem* GeoReferencingSystem, FEastNorthUp& EastNorthUpVectors);
+
+	/**
+	 * Get the East, North, and Up vectors from the North, East, and Down vector struct
+	 * @param NorthEastDownVectors The North, East, and Down vectors representing the current orientation
+	 * @param EastNorthUpVectors The resulting East, North, and Up vectors representing the current orientation
+	 */
+	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
+	static void GetEastNorthUpVectorsFromNorthEastDownVectors(FNorthEastDown NorthEastDownVectors, FEastNorthUp& EastNorthUpVectors);
+
+	/**
+	 * Get the North, East, and Down vectors from the East, North, and Up vector struct
+	 * @param EastNorthUpVectors The East, North, and Up vectors representing the current orientation
+	 * @param NorthEastDownVectors The resulting North, East, and Down vectors representing the current orientation
+	 */
+	UFUNCTION(BlueprintPure, Category = "GRILL DIS|Unit Conversions")
+	static void GetNorthEastDownVectorsFromEastNorthUpVectors(FEastNorthUp EastNorthUpVectors, FNorthEastDown& NorthEastDownVectors);
+
+	/**
+	 * Convert between North, East, Down and East, North, Up orientation representation using double values
+	 * @param StartingVectors The matrix representation of the starting vectors (each vector is a column)
+	 * @return The resulting conversion of swapping the first two vectors and negating the last
+	 */
+	static glm::dmat3 ConvertNedAndEnu(glm::dmat3 StartingVectors);
+
+	/**
+	 * Convert between North, East, Down and East, North, Up orientation representation using double values
+	 * @param StartingVectors The matrix representation of the starting vectors (each vector is a column and the final vector is 0)
+	 * @return The resulting conversion of swapping the first two vectors and negating the third
+	 */
+	static FMatrix ConvertNedAndEnu(FMatrix StartingVectors);
 };
