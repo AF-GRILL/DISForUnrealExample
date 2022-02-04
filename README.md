@@ -55,8 +55,9 @@
 
 # Modifying
 
-- Handling of DIS packets is performed by the each associated DIS Entity.
-    - Open up the 'DISEntity_BPBase' actor located in the '\Game\Actors\DISEntities' folder to view how it is being performed.
+- Handling of DIS packets is performed by the each individual DIS Entity.
+    - Open up the 'DISEntity_BPBase' actor located in the '\Game\Actors\DISEntities' folder to view how receiving is being performed.
+	- Open up the 'DISEntity_ExampleSending' actor located in the '\Game\Actors\DISEntities' folder to view how sending is being performed.
     - Additional DIS packet processing is performed by the GRILL DIS for Unreal plugin. Refer to its README for additional details.
 - Handling of UDP connections is performed in the 'DISGameState' located in the '\Game\GameModeBPs' folder.
 
