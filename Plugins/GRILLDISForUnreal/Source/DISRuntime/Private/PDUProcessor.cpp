@@ -120,107 +120,12 @@ void UPDUProcessor::ProcessDISPacket(TArray<uint8> InData)
 // TODO: Implement additional PDU conversions to bytes to support sending of more types.
 void UPDUProcessor::ConvertEntityStatePDUtoBytes(int Exercise, FEntityStatePDU EntityStatePDUIn, TArray<uint8>& BytesOut)
 {
+	EntityStatePDUIn.ProtocolVersion = 6;
+	EntityStatePDUIn.ExerciseID = Exercise;
+
+	DIS::EntityStatePdu entityStatePDUToSend = EntityStatePDUIn.ToDIS();
+
 	DIS::DataStream buffer(BigEndian);
-
-	//protocol and exercise
-	DIS::EntityStatePdu entityStatePDUToSend;
-	entityStatePDUToSend.setProtocolVersion(6);
-	entityStatePDUToSend.setExerciseID(Exercise);
-
-	//entity id
-	DIS::EntityID tempID;
-	tempID.setSite(EntityStatePDUIn.EntityID.Site);
-	tempID.setApplication(EntityStatePDUIn.EntityID.Application);
-	tempID.setEntity(EntityStatePDUIn.EntityID.Entity);
-	entityStatePDUToSend.setEntityID(tempID);
-
-	//Location
-	DIS::Vector3Double tempDouble;
-	tempDouble.setX(EntityStatePDUIn.EntityLocation[0]);
-	tempDouble.setY(EntityStatePDUIn.EntityLocation[1]);
-	tempDouble.setZ(EntityStatePDUIn.EntityLocation[2]);
-	entityStatePDUToSend.setEntityLocation(tempDouble);
-
-	//Orientation
-	DIS::Orientation tempOri;
-	tempOri.setPhi(EntityStatePDUIn.EntityOrientation.Roll);
-	tempOri.setPsi(EntityStatePDUIn.EntityOrientation.Yaw);
-	tempOri.setTheta(EntityStatePDUIn.EntityOrientation.Pitch);
-	entityStatePDUToSend.setEntityOrientation(tempOri);
-
-	//Linear Velocity
-	DIS::Vector3Float tempVelocity;
-	tempVelocity.setX(EntityStatePDUIn.EntityLinearVelocity[0]);
-	tempVelocity.setY(EntityStatePDUIn.EntityLinearVelocity[1]);
-	tempVelocity.setZ(EntityStatePDUIn.EntityLinearVelocity[2]);
-	entityStatePDUToSend.setEntityLinearVelocity(tempVelocity);
-
-	//dead reckoning
-	DIS::DeadReckoningParameter drp;
-	drp.setDeadReckoningAlgorithm(EntityStatePDUIn.DeadReckoningParameters.DeadReckoningAlgorithm);
-	DIS::Vector3Float tempFloat;
-	tempFloat.setX(EntityStatePDUIn.DeadReckoningParameters.EntityAngularVelocity.X);
-	tempFloat.setY(EntityStatePDUIn.DeadReckoningParameters.EntityAngularVelocity.Y);
-	tempFloat.setZ(EntityStatePDUIn.DeadReckoningParameters.EntityAngularVelocity.Z);
-	drp.setEntityAngularVelocity(tempFloat);
-	tempFloat.setX(EntityStatePDUIn.DeadReckoningParameters.EntityLinearAcceleration.X);
-	tempFloat.setY(EntityStatePDUIn.DeadReckoningParameters.EntityLinearAcceleration.Y);
-	tempFloat.setZ(EntityStatePDUIn.DeadReckoningParameters.EntityLinearAcceleration.Z);
-	drp.setEntityLinearAcceleration(tempFloat);
-	// TODO: figure out how to get the character buffer of 15 8bits and put it into tarray of 15 elements each with 8bits
-	//drp.setOtherParameters(EntityStatePDUIn.DeadReckoningParameters.OtherParameters);
-	entityStatePDUToSend.setDeadReckoningParameters(drp);
-
-	//single vars
-	entityStatePDUToSend.setForceId(static_cast<unsigned char>(EntityStatePDUIn.ForceID));
-
-	DIS::Marking tempMarking;
-	tempMarking.setCharacterSet(1);
-	tempMarking.setByStringCharacters(TCHAR_TO_ANSI(*EntityStatePDUIn.Marking));
-	entityStatePDUToSend.setMarking(tempMarking);
-
-	entityStatePDUToSend.setPduType(static_cast<unsigned char>(EntityStatePDUIn.PduType));
-	entityStatePDUToSend.setEntityAppearance(EntityStatePDUIn.EntityAppearance);
-	//entityStatePDUToSend.NumberOfArticulationParameters = EntityStatePDUIn->getNumberOfArticulationParameters();
-	entityStatePDUToSend.setCapabilities(EntityStatePDUIn.Capabilities);
-
-	//Entity Type
-	DIS::EntityType tempType;
-	tempType.setCategory(EntityStatePDUIn.EntityType.Category);
-	tempType.setCountry(EntityStatePDUIn.EntityType.Country);
-	tempType.setDomain(EntityStatePDUIn.EntityType.Domain);
-	tempType.setEntityKind(EntityStatePDUIn.EntityType.EntityKind);
-	tempType.setExtra(EntityStatePDUIn.EntityType.Extra);
-	tempType.setSpecific(EntityStatePDUIn.EntityType.Specific);
-	tempType.setSubcategory(EntityStatePDUIn.EntityType.Subcategory);
-	entityStatePDUToSend.setEntityType(tempType);
-
-	//Alternate Entity Type
-	DIS::EntityType altTempType;
-	altTempType.setCategory(EntityStatePDUIn.AlternativeEntityType.Category);
-	altTempType.setCountry(EntityStatePDUIn.AlternativeEntityType.Country);
-	altTempType.setDomain(EntityStatePDUIn.AlternativeEntityType.Domain);
-	altTempType.setEntityKind(EntityStatePDUIn.AlternativeEntityType.EntityKind);
-	altTempType.setExtra(EntityStatePDUIn.AlternativeEntityType.Extra);
-	altTempType.setSpecific(EntityStatePDUIn.AlternativeEntityType.Specific);
-	altTempType.setSubcategory(EntityStatePDUIn.AlternativeEntityType.Subcategory);
-	entityStatePDUToSend.setAlternativeEntityType(altTempType);
-
-	//Articulation Parameters
-	std::vector<DIS::ArticulationParameter> artParams;
-	for (int i = 0; i < EntityStatePDUIn.ArticulationParameters.Num(); i++)
-	{
-		FArticulationParameters tempArtParam = EntityStatePDUIn.ArticulationParameters[i];
-		DIS::ArticulationParameter newArtParam;
-		newArtParam.setChangeIndicator(tempArtParam.ChangeIndicator);
-		newArtParam.setParameterType(tempArtParam.ParameterType);
-		newArtParam.setParameterTypeDesignator(tempArtParam.ParameterTypeDesignator);
-		newArtParam.setParameterValue(tempArtParam.ParameterValue);
-		newArtParam.setPartAttachedTo(tempArtParam.PartAttachedTo);
-
-		artParams.push_back(newArtParam);
-	}
-	entityStatePDUToSend.setArticulationParameters(artParams);
 
 	//marshal
 	entityStatePDUToSend.marshal(buffer);
@@ -234,25 +139,148 @@ void UPDUProcessor::ConvertEntityStatePDUtoBytes(int Exercise, FEntityStatePDU E
 	BytesOut = tempBytes;
 }
 
+void UPDUProcessor::ConvertEntityStateUpdatePDUtoBytes(int Exercise, FEntityStateUpdatePDU EntityStateUpdatePDUIn, TArray<uint8>& BytesOut)
+{
+	EntityStateUpdatePDUIn.ExerciseID = Exercise;
+
+	const DIS::EntityStateUpdatePdu PduToSend = EntityStateUpdatePDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
+void UPDUProcessor::ConvertFirePDUtoBytes(int Exercise, FFirePDU FirePDUIn, TArray<uint8>& BytesOut)
+{
+	FirePDUIn.ExerciseID = Exercise;
+
+	const DIS::FirePdu PduToSend = FirePDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
+void UPDUProcessor::ConvertRemoveEntityPDUtoBytes(int Exercise, FRemoveEntityPDU RemoveEntityPDUIn, TArray<uint8>& BytesOut)
+{
+	RemoveEntityPDUIn.ExerciseID = Exercise;
+
+	const DIS::RemoveEntityPdu PduToSend = RemoveEntityPDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
+void UPDUProcessor::ConvertDetonationPDUtoBytes(int Exercise, FDetonationPDU DetonationPDUIn, TArray<uint8>& BytesOut)
+{
+	DetonationPDUIn.ExerciseID = Exercise;
+
+	const DIS::DetonationPdu PduToSend = DetonationPDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
+void UPDUProcessor::ConvertStartResumePDUtoBytes(int Exercise, FStartResumePDU StartResumePDUIn, TArray<uint8>& BytesOut)
+{
+	StartResumePDUIn.ExerciseID = Exercise;
+
+	const DIS::StartResumePdu PduToSend = StartResumePDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
+void UPDUProcessor::ConvertStopFreezePDUtoBytes(int Exercise, FStopFreezePDU StopFreezePDUIn, TArray<uint8>& BytesOut)
+{
+	StopFreezePDUIn.ExerciseID = Exercise;
+
+	const DIS::StopFreezePdu PduToSend = StopFreezePDUIn.ToDIS();
+
+	DIS::DataStream Buffer(BigEndian);
+
+	PduToSend.marshal(Buffer);
+	TArray<uint8> BytesToSend;
+	BytesToSend.Init(0, Buffer.size());
+	for (int i = 0; i < Buffer.size(); i++)
+	{
+		BytesToSend[i] = Buffer[i];
+	}
+	Buffer.clear();
+
+	BytesOut = BytesToSend;
+}
+
 FEntityStatePDU UPDUProcessor::ConvertEntityStatePDUtoBPStruct(DIS::EntityStatePdu* EntityStatePDUIn)
 {
 	FEntityStatePDU entityStatePDU;
 
-	DIS::Vector3Double& position = EntityStatePDUIn->getEntityLocation();
-	DIS::Orientation& rotation = EntityStatePDUIn->getEntityOrientation();
-	const DIS::EntityID entityID = EntityStatePDUIn->getEntityID();
-	const DIS::EntityType entityType = EntityStatePDUIn->getEntityType();
-	const DIS::EntityType altEntityType = EntityStatePDUIn->getAlternativeEntityType();
+	//pdu common parameters
+	entityStatePDU.ProtocolVersion = EntityStatePDUIn->getProtocolVersion();
+	entityStatePDU.ExerciseID = EntityStatePDUIn->getExerciseID();
+	entityStatePDU.PduType = static_cast<EPDUType>(EntityStatePDUIn->getPduType());
+	entityStatePDU.ProtocolFamily = EntityStatePDUIn->getProtocolFamily();
+	entityStatePDU.Timestamp = EntityStatePDUIn->getTimestamp();
+	entityStatePDU.Length = EntityStatePDUIn->getLength();
+	entityStatePDU.Padding = EntityStatePDUIn->getPadding();
+
+	// Entity State PDU specifics
+	//entity id
+	entityStatePDU.EntityID = EntityStatePDUIn->getEntityID();
 
 	//pure since unsupported in BP
+	DIS::Vector3Double& position = EntityStatePDUIn->getEntityLocation();
 	entityStatePDU.EntityLocationDouble[0] = position.getX();
 	entityStatePDU.EntityLocationDouble[1] = position.getY();
 	entityStatePDU.EntityLocationDouble[2] = position.getZ();
-
-	//entity id
-	entityStatePDU.EntityID.Site = entityID.getSite();
-	entityStatePDU.EntityID.Application = entityID.getApplication();
-	entityStatePDU.EntityID.Entity = entityID.getEntity();
 
 	//location
 	entityStatePDU.EntityLocation[0] = position.getX();
@@ -260,6 +288,7 @@ FEntityStatePDU UPDUProcessor::ConvertEntityStatePDUtoBPStruct(DIS::EntityStateP
 	entityStatePDU.EntityLocation[2] = position.getZ();
 
 	//rotation
+	DIS::Orientation& rotation = EntityStatePDUIn->getEntityOrientation();
 	entityStatePDU.EntityOrientation.Yaw = rotation.getPsi();
 	entityStatePDU.EntityOrientation.Roll = rotation.getPhi();
 	entityStatePDU.EntityOrientation.Pitch = rotation.getTheta();
@@ -271,8 +300,7 @@ FEntityStatePDU UPDUProcessor::ConvertEntityStatePDUtoBPStruct(DIS::EntityStateP
 
 	//Dead reckoning
 	entityStatePDU.DeadReckoningParameters.DeadReckoningAlgorithm = EntityStatePDUIn->getDeadReckoningParameters().getDeadReckoningAlgorithm();
-	// TODO: figure out how to get the character buffer of 15 8bits and put it into tarray of 15 elements each with 8bits
-	//returnStruct.DeadReckoningParameters.OtherParameters = espdu.getDeadReckoningParameters().getOtherParameters();
+	entityStatePDU.DeadReckoningParameters.OtherParameters = TArray<uint8>(reinterpret_cast<uint8*>(EntityStatePDUIn->getDeadReckoningParameters().getOtherParameters()), 15);
 	entityStatePDU.DeadReckoningParameters.EntityLinearAcceleration[0] = EntityStatePDUIn->getDeadReckoningParameters().getEntityLinearAcceleration().getX();
 	entityStatePDU.DeadReckoningParameters.EntityLinearAcceleration[1] = EntityStatePDUIn->getDeadReckoningParameters().getEntityLinearAcceleration().getY();
 	entityStatePDU.DeadReckoningParameters.EntityLinearAcceleration[2] = EntityStatePDUIn->getDeadReckoningParameters().getEntityLinearAcceleration().getZ();
@@ -283,27 +311,14 @@ FEntityStatePDU UPDUProcessor::ConvertEntityStatePDUtoBPStruct(DIS::EntityStateP
 	//single vars
 	entityStatePDU.ForceID = static_cast<EForceID>(EntityStatePDUIn->getForceId());
 	entityStatePDU.Marking = FString(EntityStatePDUIn->getMarking().getCharacters());
-	entityStatePDU.PduType = static_cast<EPDUType>(EntityStatePDUIn->getPduType());
 	entityStatePDU.EntityAppearance = EntityStatePDUIn->getEntityAppearance();
 	entityStatePDU.Capabilities = EntityStatePDUIn->getCapabilities();
 
 	//Entity type
-	entityStatePDU.EntityType.EntityKind = entityType.getEntityKind();
-	entityStatePDU.EntityType.Domain = entityType.getDomain();
-	entityStatePDU.EntityType.Country = entityType.getCountry();
-	entityStatePDU.EntityType.Category = entityType.getCategory();
-	entityStatePDU.EntityType.Subcategory = entityType.getSubcategory();
-	entityStatePDU.EntityType.Specific = entityType.getSpecific();
-	entityStatePDU.EntityType.Extra = entityType.getExtra();
+	entityStatePDU.EntityType = EntityStatePDUIn->getEntityType();
 
 	//Alternative Entity type
-	entityStatePDU.AlternativeEntityType.EntityKind = altEntityType.getEntityKind();
-	entityStatePDU.AlternativeEntityType.Domain = altEntityType.getDomain();
-	entityStatePDU.AlternativeEntityType.Country = altEntityType.getCountry();
-	entityStatePDU.AlternativeEntityType.Category = altEntityType.getCategory();
-	entityStatePDU.AlternativeEntityType.Subcategory = altEntityType.getSubcategory();
-	entityStatePDU.AlternativeEntityType.Specific = altEntityType.getSpecific();
-	entityStatePDU.AlternativeEntityType.Extra = altEntityType.getExtra();
+	entityStatePDU.AlternativeEntityType = EntityStatePDUIn->getAlternativeEntityType();
 
 	//Articulation Parameters
 	for (int i = 0; i < EntityStatePDUIn->getNumberOfArticulationParameters(); i++) 
@@ -326,20 +341,24 @@ FEntityStateUpdatePDU UPDUProcessor::ConvertEntityStateUpdatePDUtoBPStruct(DIS::
 {
 	FEntityStateUpdatePDU entityStateUpdatePDU;
 
-	DIS::Vector3Double& position = EntityStateUpdatePDUIn->getEntityLocation();
-	DIS::Orientation& rotation = EntityStateUpdatePDUIn->getEntityOrientation();
-	const DIS::EntityID EntityID = EntityStateUpdatePDUIn->getEntityID();
+	//pdu common parameters
+	entityStateUpdatePDU.ProtocolVersion = EntityStateUpdatePDUIn->getProtocolVersion();
+	entityStateUpdatePDU.ExerciseID = EntityStateUpdatePDUIn->getExerciseID();
+	entityStateUpdatePDU.PduType = static_cast<EPDUType>(EntityStateUpdatePDUIn->getPduType());
+	entityStateUpdatePDU.ProtocolFamily = EntityStateUpdatePDUIn->getProtocolFamily();
+	entityStateUpdatePDU.Timestamp = EntityStateUpdatePDUIn->getTimestamp();
+	entityStateUpdatePDU.Length = EntityStateUpdatePDUIn->getLength();
+	entityStateUpdatePDU.Padding = EntityStateUpdatePDUIn->getPadding();
 
+	//Entity State Update specifics
+	//entity id
+	entityStateUpdatePDU.EntityID = EntityStateUpdatePDUIn->getEntityID();
 
 	//pure since unsupported in BP
+	DIS::Vector3Double& position = EntityStateUpdatePDUIn->getEntityLocation();
 	entityStateUpdatePDU.EntityLocationDouble[0] = position.getX();
 	entityStateUpdatePDU.EntityLocationDouble[1] = position.getY();
 	entityStateUpdatePDU.EntityLocationDouble[2] = position.getZ();
-
-	//entity id
-	entityStateUpdatePDU.EntityID.Site = EntityID.getSite();
-	entityStateUpdatePDU.EntityID.Application = EntityID.getApplication();
-	entityStateUpdatePDU.EntityID.Entity = EntityID.getEntity();
 
 	//location
 	entityStateUpdatePDU.EntityLocation[0] = position.getX();
@@ -347,6 +366,7 @@ FEntityStateUpdatePDU UPDUProcessor::ConvertEntityStateUpdatePDUtoBPStruct(DIS::
 	entityStateUpdatePDU.EntityLocation[2] = position.getZ();
 
 	//rotation
+	DIS::Orientation& rotation = EntityStateUpdatePDUIn->getEntityOrientation();
 	entityStateUpdatePDU.EntityOrientation.Yaw = rotation.getPsi();
 	entityStateUpdatePDU.EntityOrientation.Roll = rotation.getPhi();
 	entityStateUpdatePDU.EntityOrientation.Pitch = rotation.getTheta();
@@ -357,8 +377,6 @@ FEntityStateUpdatePDU UPDUProcessor::ConvertEntityStateUpdatePDUtoBPStruct(DIS::
 	entityStateUpdatePDU.EntityLinearVelocity[2] = EntityStateUpdatePDUIn->getEntityLinearVelocity().getZ();
 
 	//Single Vars
-	entityStateUpdatePDU.PduType = static_cast<EPDUType>(EntityStateUpdatePDUIn->getPduType());
-	entityStateUpdatePDU.Padding = EntityStateUpdatePDUIn->getPadding();
 	entityStateUpdatePDU.Padding1 = EntityStateUpdatePDUIn->getPadding1();
 	entityStateUpdatePDU.EntityAppearance = EntityStateUpdatePDUIn->getEntityAppearance();
 
@@ -383,8 +401,21 @@ FFirePDU UPDUProcessor::ConvertFirePDUtoBPStruct(DIS::FirePdu* FirePDUIn)
 {
 	FFirePDU firePDU;
 
-	//single vars
+	//pdu common parameters
+	firePDU.ProtocolVersion = FirePDUIn->getProtocolVersion();
+	firePDU.ExerciseID = FirePDUIn->getExerciseID();
 	firePDU.PduType = static_cast<EPDUType>(FirePDUIn->getPduType());
+	firePDU.ProtocolFamily = FirePDUIn->getProtocolFamily();
+	firePDU.Timestamp = FirePDUIn->getTimestamp();
+	firePDU.Length = FirePDUIn->getLength();
+	firePDU.Padding = FirePDUIn->getPadding();
+
+	// WarfareFamilyPdu specific parameters
+	firePDU.FiringEntityID = FirePDUIn->getFiringEntityID();
+	firePDU.TargetEntityID = FirePDUIn->getTargetEntityID();
+
+	// Fire PDU specifics
+	//single vars
 	firePDU.FireMissionIndex = FirePDUIn->getFireMissionIndex();
 	firePDU.Range = FirePDUIn->getRange();
 
@@ -409,22 +440,14 @@ FFirePDU UPDUProcessor::ConvertFirePDUtoBPStruct(DIS::FirePdu* FirePDUIn)
 	firePDU.LocationDouble[2] = FirePDUIn->getLocationInWorldCoordinates().getZ();
 
 	//event id
-	firePDU.EventID.Site = FirePDUIn->getEventID().getSite();
-	firePDU.EventID.Application = FirePDUIn->getEventID().getApplication();
-	firePDU.EventID.EventID = FirePDUIn->getEventID().getEventNumber();
+	firePDU.EventID = FirePDUIn->getEventID();
 
 	//burst descriptor
 	firePDU.BurstDescriptor.Warhead = FirePDUIn->getBurstDescriptor().getWarhead();
 	firePDU.BurstDescriptor.Fuse = FirePDUIn->getBurstDescriptor().getFuse();
 	firePDU.BurstDescriptor.Rate = FirePDUIn->getBurstDescriptor().getRate();
 	firePDU.BurstDescriptor.Quantity = FirePDUIn->getBurstDescriptor().getQuantity();
-	firePDU.BurstDescriptor.EntityType.EntityKind = FirePDUIn->getBurstDescriptor().getMunition().getEntityKind();
-	firePDU.BurstDescriptor.EntityType.Domain = FirePDUIn->getBurstDescriptor().getMunition().getDomain();
-	firePDU.BurstDescriptor.EntityType.Country = FirePDUIn->getBurstDescriptor().getMunition().getCountry();
-	firePDU.BurstDescriptor.EntityType.Category = FirePDUIn->getBurstDescriptor().getMunition().getCategory();
-	firePDU.BurstDescriptor.EntityType.Subcategory = FirePDUIn->getBurstDescriptor().getMunition().getSubcategory();
-	firePDU.BurstDescriptor.EntityType.Specific = FirePDUIn->getBurstDescriptor().getMunition().getSpecific();
-	firePDU.BurstDescriptor.EntityType.Extra = FirePDUIn->getBurstDescriptor().getMunition().getExtra();
+	firePDU.BurstDescriptor.EntityType = FirePDUIn->getBurstDescriptor().getMunition();
 
 	return firePDU;
 }
@@ -433,15 +456,25 @@ FDetonationPDU UPDUProcessor::ConvertDetonationPDUtoBPStruct(DIS::DetonationPdu*
 {
 	FDetonationPDU detonationPDU;
 
+	//pdu common parameters
+	detonationPDU.ProtocolVersion = DetPDUIn->getProtocolVersion();
+	detonationPDU.ExerciseID = DetPDUIn->getExerciseID();
+	detonationPDU.PduType = static_cast<EPDUType>(DetPDUIn->getPduType());
+	detonationPDU.ProtocolFamily = DetPDUIn->getProtocolFamily();
+	detonationPDU.Timestamp = DetPDUIn->getTimestamp();
+	detonationPDU.Length = DetPDUIn->getLength();
+	detonationPDU.Padding = DetPDUIn->getPadding();
+
+	// WarfareFamilyPdu specific parameters
+	detonationPDU.FiringEntityID = DetPDUIn->getFiringEntityID();
+	detonationPDU.TargetEntityID = DetPDUIn->getTargetEntityID();
+
+	//Detonation PDU specifics
 	//MunitionEntityID
-	detonationPDU.MunitionEntityID.Site = DetPDUIn->getMunitionID().getSite();
-	detonationPDU.MunitionEntityID.Application = DetPDUIn->getMunitionID().getApplication();
-	detonationPDU.MunitionEntityID.Entity = DetPDUIn->getMunitionID().getEntity();
+	detonationPDU.MunitionEntityID = DetPDUIn->getMunitionID();
 
 	//event id
-	detonationPDU.EventID.Site = DetPDUIn->getEventID().getSite();
-	detonationPDU.EventID.Application = DetPDUIn->getEventID().getApplication();
-	detonationPDU.EventID.EventID = DetPDUIn->getEventID().getEventNumber();
+	detonationPDU.EventID = DetPDUIn->getEventID();
 
 	//velocity
 	detonationPDU.Velocity[0] = DetPDUIn->getVelocity().getX();
@@ -468,13 +501,13 @@ FDetonationPDU UPDUProcessor::ConvertDetonationPDUtoBPStruct(DIS::DetonationPdu*
 	detonationPDU.BurstDescriptor.Fuse = DetPDUIn->getBurstDescriptor().getFuse();
 	detonationPDU.BurstDescriptor.Rate = DetPDUIn->getBurstDescriptor().getRate();
 	detonationPDU.BurstDescriptor.Quantity = DetPDUIn->getBurstDescriptor().getQuantity();
-	detonationPDU.BurstDescriptor.EntityType.EntityKind = DetPDUIn->getBurstDescriptor().getMunition().getEntityKind();
-	detonationPDU.BurstDescriptor.EntityType.Domain = DetPDUIn->getBurstDescriptor().getMunition().getDomain();
-	detonationPDU.BurstDescriptor.EntityType.Country = DetPDUIn->getBurstDescriptor().getMunition().getCountry();
-	detonationPDU.BurstDescriptor.EntityType.Category = DetPDUIn->getBurstDescriptor().getMunition().getCategory();
-	detonationPDU.BurstDescriptor.EntityType.Subcategory = DetPDUIn->getBurstDescriptor().getMunition().getSubcategory();
-	detonationPDU.BurstDescriptor.EntityType.Specific = DetPDUIn->getBurstDescriptor().getMunition().getSpecific();
-	detonationPDU.BurstDescriptor.EntityType.Extra = DetPDUIn->getBurstDescriptor().getMunition().getExtra();
+	detonationPDU.BurstDescriptor.EntityType = DetPDUIn->getBurstDescriptor().getMunition();
+
+	detonationPDU.TargetEntityID = DetPDUIn->getTargetEntityID();
+
+	detonationPDU.FiringEntityID.Site = DetPDUIn->getFiringEntityID().getSite();
+	detonationPDU.FiringEntityID.Application = DetPDUIn->getFiringEntityID().getApplication();
+	detonationPDU.FiringEntityID.Entity = DetPDUIn->getFiringEntityID().getEntity();
 
 	//single vars
 	detonationPDU.PduType = static_cast<EPDUType>(DetPDUIn->getPduType());
@@ -502,13 +535,19 @@ FRemoveEntityPDU UPDUProcessor::ConvertRemoveEntityPDUtoBPStruct(DIS::RemoveEnti
 {
 	FRemoveEntityPDU removeEntityPDU;
 
+	//pdu common parameters
+	removeEntityPDU.ProtocolVersion = RemovePDUIn->getProtocolVersion();
+	removeEntityPDU.ExerciseID = RemovePDUIn->getExerciseID();
 	removeEntityPDU.PduType = static_cast<EPDUType>(RemovePDUIn->getPduType());
-	removeEntityPDU.OriginatingEntityID.Site = RemovePDUIn->getOriginatingEntityID().getSite();
-	removeEntityPDU.OriginatingEntityID.Application = RemovePDUIn->getOriginatingEntityID().getApplication();
-	removeEntityPDU.OriginatingEntityID.Entity = RemovePDUIn->getOriginatingEntityID().getEntity();
-	removeEntityPDU.ReceivingEntityID.Site = RemovePDUIn->getReceivingEntityID().getSite();
-	removeEntityPDU.ReceivingEntityID.Application = RemovePDUIn->getReceivingEntityID().getApplication();
-	removeEntityPDU.ReceivingEntityID.Entity = RemovePDUIn->getReceivingEntityID().getEntity();
+	removeEntityPDU.ProtocolFamily = RemovePDUIn->getProtocolFamily();
+	removeEntityPDU.Timestamp = RemovePDUIn->getTimestamp();
+	removeEntityPDU.Length = RemovePDUIn->getLength();
+	removeEntityPDU.Padding = RemovePDUIn->getPadding();
+
+	//Simulation Management Family Pdu specific
+	removeEntityPDU.OriginatingEntityID = RemovePDUIn->getOriginatingEntityID();
+	removeEntityPDU.ReceivingEntityID = RemovePDUIn->getReceivingEntityID();
+
 	removeEntityPDU.RequestID = RemovePDUIn->getRequestID();
 
 	return removeEntityPDU;
@@ -518,8 +557,20 @@ FStartResumePDU UPDUProcessor::ConvertStartResumePDUtoBPStruct(DIS::StartResumeP
 {
 	FStartResumePDU startResumePDU;
 
+	//pdu common parameters
+	startResumePDU.ProtocolVersion = StartResumePDUIn->getProtocolVersion();
+	startResumePDU.ExerciseID = StartResumePDUIn->getExerciseID();
 	startResumePDU.PduType = static_cast<EPDUType>(StartResumePDUIn->getPduType());
+	startResumePDU.ProtocolFamily = StartResumePDUIn->getProtocolFamily();
+	startResumePDU.Timestamp = StartResumePDUIn->getTimestamp();
+	startResumePDU.Length = StartResumePDUIn->getLength();
+	startResumePDU.Padding = StartResumePDUIn->getPadding();
 
+	//Simulation Management Family Pdu specific
+	startResumePDU.OriginatingEntityID = StartResumePDUIn->getOriginatingEntityID();
+	startResumePDU.ReceivingEntityID = StartResumePDUIn->getReceivingEntityID();
+
+	// Start/Resume PDU specific
 	DIS::ClockTime RealWorldTime = StartResumePDUIn->getRealWorldTime();
 	DIS::ClockTime SimulationTime = StartResumePDUIn->getRealWorldTime();
 
@@ -538,16 +589,28 @@ FStopFreezePDU UPDUProcessor::ConvertStopFreezePDUtoBPStruct(DIS::StopFreezePdu*
 {
 	FStopFreezePDU stopFreezePDU;
 
-	DIS::ClockTime RealWorldTime = StopFreezePDUIn->getRealWorldTime();
-
+	//pdu common parameters
+	stopFreezePDU.ProtocolVersion = StopFreezePDUIn->getProtocolVersion();
+	stopFreezePDU.ExerciseID = StopFreezePDUIn->getExerciseID();
 	stopFreezePDU.PduType = static_cast<EPDUType>(StopFreezePDUIn->getPduType());
+	stopFreezePDU.ProtocolFamily = StopFreezePDUIn->getProtocolFamily();
+	stopFreezePDU.Timestamp = StopFreezePDUIn->getTimestamp();
+	stopFreezePDU.Length = StopFreezePDUIn->getLength();
+	stopFreezePDU.Padding = StopFreezePDUIn->getPadding();
+
+	//Simulation Management Family Pdu specific
+	stopFreezePDU.OriginatingEntityID = StopFreezePDUIn->getOriginatingEntityID();
+	stopFreezePDU.ReceivingEntityID = StopFreezePDUIn->getReceivingEntityID();
+
+	// Stop/Freeze PDU specifics
+	DIS::ClockTime RealWorldTime = StopFreezePDUIn->getRealWorldTime();
 
 	stopFreezePDU.RealWorldTime.Hour = RealWorldTime.getHour();
 	stopFreezePDU.RealWorldTime.TimePastHour = RealWorldTime.getTimePastHour();
 
 	stopFreezePDU.Reason = static_cast<EReason>(StopFreezePDUIn->getReason());
 	stopFreezePDU.FrozenBehavior = StopFreezePDUIn->getFrozenBehavior();
-	stopFreezePDU.Padding = StopFreezePDUIn->getPadding1();
+	stopFreezePDU.PaddingOne = StopFreezePDUIn->getPadding1();
 	stopFreezePDU.RequestID = StopFreezePDUIn->getRequestID();
 
 	return stopFreezePDU;
