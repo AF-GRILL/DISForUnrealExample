@@ -13,7 +13,7 @@
     - Click on the 'GRILL DIS' button in the Level Editor toolbar or go to Project Settings > GRILL DIS.
     - Expand the 'DIS Mappings' section and then expand the 'DIS Enumeration Mappings' dropdown.
     - Add desired actor to DIS Enumeration mappings.
-        - NOTE: Currently the actors tied to DIS Enumerations have to inherit from the DISEntity_Base actor supplied by the GRILL DIS for Unreal plugin.
+        - _**NOTE:**_ Currently the actors tied to DIS Enumerations have to inherit from the DISEntity_Base actor supplied by the GRILL DIS for Unreal plugin.
 - After DIS Enumeration mappings are created, click on play.
 - Click on the 'DIS Options' button on the menu that appears on start.
     - Change the visuals as desired.
@@ -22,22 +22,23 @@
         - Entity Icons: An icon that will appear to represent the entity when the user is a certain distance away.
             - Entity icons are currently all the same, but they could be updated to show MIL STD icons for example.
         - Entity Ribbon Trails: Trails that appear behind the DIS Entities to show the path that they have taken.
-            - NOTE: These visuals are buggy with Cesium if relocating the origin is enabled.
+            - _**NOTE:**_ These visuals are buggy with Cesium if relocating the origin is enabled.
     - Change the network settings as desired.
         - Exercise ID/Site ID/Application ID: DIS specific settings.
         - Receive IP Address: Address to receive DIS packets on.
-            - NOTE: A receive IP address of 0.0.0.0 will listen to all DIS packets on the network.
+            - _**NOTE:**_ A receive IP address of 0.0.0.0 will listen to all DIS packets on the network.
         - Receive Port: The port to receive DIS packets on.
         - Send IP Address: The IP address to send DIS packets on.
         - Send IP Address: The port to send DIS packets on.
     - Click on Connect to connect to the network (opens a UDP socket)
 - Once all desired options are set, hit 'Apply & Close'. Then click on 'Start' if haven't already.
-    - NOTE: 'DIS Options' can be changed even after 'Start' is clicked via the 'Options' button that appears in the top right hand corner.
+    - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via the 'Options' button that appears in the top right hand corner.
 - If DIS packets are being sent across the network and DIS mappings have been set, then DIS entities should start appearing in the world.
+    - _**NOTE:**_ If custom DIS packets are desired to be sent by the sim, refer to the Modifying section below.
 - Click on the 'Entities' button in the top right hand corner of the screen to see available DIS Entities in the world.
     - The DIS Entities labels in the listing can be selected to view at various camera angles.
     - Either double click on an entity to go to direct view or select an entity and change the camera dropdown on the bottom right.
-        - NOTE: Once the camera dropdown is changed away from 'Free Flying', just clicking on an entity will change the camera view to that entity.
+        - _**NOTE:**_ Once the camera dropdown is changed away from 'Free Flying', just clicking on an entity will change the camera view to that entity.
         - The available camera options are:
             - Free Flying: Not attached to an entity. User controlled. See the below 'Movement' section for details on controlling it.
             - Direct View: A fixed direct view out the front of the entity. Moves and rotates with the entity.
