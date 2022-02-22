@@ -10,11 +10,13 @@ DEFINE_LOG_CATEGORY(LogDISComponent);
 // Sets default values for this component's properties
 UDISComponent::UDISComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
-}
+	MostRecentEntityStatePDU = NewObject<UGRILL_EntityStatePDU>();
+	DeadReckoningEntityStatePDU = NewObject<UGRILL_EntityStatePDU>();
+	TempDeadReckonedPDU = NewObject<UGRILL_EntityStatePDU>();
 
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
+}
 
 // Called when the game starts
 void UDISComponent::BeginPlay()
@@ -24,7 +26,7 @@ void UDISComponent::BeginPlay()
 
 UGRILL_EntityStatePDU* UDISComponent::GetMostRecentEntityStatePDU()
 {
-	if (!MostRecentEntityStatePDU)
+	if (!IsValid(MostRecentEntityStatePDU))
 	{
 		MostRecentEntityStatePDU = NewObject<UGRILL_EntityStatePDU>();
 	}
@@ -34,7 +36,7 @@ UGRILL_EntityStatePDU* UDISComponent::GetMostRecentEntityStatePDU()
 
 UGRILL_EntityStatePDU* UDISComponent::GetMostRecentDeadReckoningPDU()
 {
-	if (!DeadReckoningEntityStatePDU)
+	if (!IsValid(DeadReckoningEntityStatePDU))
 	{
 		DeadReckoningEntityStatePDU = NewObject<UGRILL_EntityStatePDU>();
 	}
@@ -55,11 +57,12 @@ void UDISComponent::SetMostRecentDeadReckoningPDU(UPARAM(ref)UGRILL_EntityStateP
 
 bool UDISComponent::GetLocalEulerAngles(TArray<uint8> OtherDeadReckoningParameters, FRotator& LocalRotator)
 {
+	// Ensure the Array is at least 15 bytes long
+	if (OtherDeadReckoningParameters.Num() < 15) return false;
+
 	// Ensure the DR Parameter type is set to 1
 	if (OtherDeadReckoningParameters[0] != 1) return false;
 
-	// Ensure the Array is at least 15 bytes long
-	if (OtherDeadReckoningParameters.Num() < 15) return false;
 
 	// The next 2 bytes are padding and not necessary so skip indices 1 and 2
 	// Concatenate the next three groups of four bytes
@@ -80,11 +83,11 @@ bool UDISComponent::GetLocalEulerAngles(TArray<uint8> OtherDeadReckoningParamete
 
 bool UDISComponent::GetLocalQuaternionAngles(TArray<uint8> OtherDeadReckoningParameters, FQuat& EntityOrientation)
 {
-	// Ensure the DR Parameter type is set to 2
-	if (OtherDeadReckoningParameters[0] != 2) return false;
-
 	// Ensure the array is at least 15 bytes long
 	if (OtherDeadReckoningParameters.Num() < 15) return false;
+
+	// Ensure the DR Parameter type is set to 2
+	if (OtherDeadReckoningParameters[0] != 2) return false;
 
 	//The next two bytes represent the 16 bit unsigned int approximation of q_0 (q_w in UE4 terminology)
 	uint16 Qu0 = (OtherDeadReckoningParameters[1] << 8) + OtherDeadReckoningParameters[2];
@@ -172,22 +175,23 @@ void UDISComponent::CalculateDeadReckonedOrientation(const double PsiRadians, co
 
 glm::dvec3 UDISComponent::GetEntityBodyDeadReckonedPosition(const glm::dvec3 InitialPositionVector, const glm::dvec3 BodyVelocityVector, const glm::dvec3 BodyLinearAccelerationVector, const glm::dvec3 BodyAngularAccelerationVector, const glm::dvec3 EntityOrientation, const double DeltaTime)
 {
-	const auto OmegaMatrix = UDIS_BPFL::CreateNCrossXMatrix(BodyAngularAccelerationVector);
-	const auto BodyAccelerationVector = BodyLinearAccelerationVector - (OmegaMatrix * BodyVelocityVector);
+	const auto SkewMatrix = UDIS_BPFL::CreateNCrossXMatrix(BodyAngularAccelerationVector);
+	const auto BodyAccelerationVector = BodyLinearAccelerationVector - (SkewMatrix * BodyVelocityVector);
 
 	// Get the entity's current orientation matrix
 	const auto OrientationMatrix = GetEntityOrientationMatrix(EntityOrientation.x, EntityOrientation.y, EntityOrientation.z);
 	const auto InverseInitialOrientationMatrix = inverse(OrientationMatrix);
 
 	// Calculate R1
-	const auto AccelerationMagnitude = OmegaMatrix.length();
-	const auto R1 = (((AccelerationMagnitude * DeltaTime - glm::sin(AccelerationMagnitude * DeltaTime)) / glm::pow(AccelerationMagnitude, 3)) * OmegaMatrix * glm::transpose(OmegaMatrix)) +
+	const auto OmegaMatrix = glm::dmat3x3(BodyAngularAccelerationVector, glm::dvec3(0), glm::dvec3(0)) * glm::transpose(glm::dmat3x3(BodyAngularAccelerationVector, glm::dvec3(0), glm::dvec3(0)));
+	constexpr auto AccelerationMagnitude = BodyAngularAccelerationVector.length();
+	const auto R1 = (((AccelerationMagnitude * DeltaTime - glm::sin(AccelerationMagnitude * DeltaTime)) / glm::pow(AccelerationMagnitude, 3)) * OmegaMatrix) +
 		(static_cast<double>(glm::sin(AccelerationMagnitude * DeltaTime) / AccelerationMagnitude) * glm::dmat3(1)) +
-		(((1 - glm::cos(AccelerationMagnitude * DeltaTime)) / glm::pow(AccelerationMagnitude, 2)) * OmegaMatrix);
+		(((1 - glm::cos(AccelerationMagnitude * DeltaTime)) / glm::pow(AccelerationMagnitude, 2)) * SkewMatrix);
 
-	const auto R2 = ((((0.5 * glm::pow(AccelerationMagnitude, 2) * glm::pow(DeltaTime, 2)) - (glm::cos(AccelerationMagnitude * DeltaTime)) - (AccelerationMagnitude * DeltaTime * glm::sin(AccelerationMagnitude * DeltaTime)) + (1)) / glm::pow(AccelerationMagnitude, 4)) * OmegaMatrix * glm::transpose(OmegaMatrix)) +
+	const auto R2 = ((((0.5 * glm::pow(AccelerationMagnitude, 2) * glm::pow(DeltaTime, 2)) - (glm::cos(AccelerationMagnitude * DeltaTime)) - (AccelerationMagnitude * DeltaTime * glm::sin(AccelerationMagnitude * DeltaTime)) + (1)) / glm::pow(AccelerationMagnitude, 4)) * SkewMatrix * glm::transpose(SkewMatrix)) +
 		(static_cast<double>(((glm::cos(AccelerationMagnitude * DeltaTime)) + (AccelerationMagnitude * DeltaTime * glm::sin(AccelerationMagnitude * DeltaTime)) - (1)) / (glm::pow(AccelerationMagnitude, 2))) * glm::dmat3(1)) +
-		((((glm::sin(AccelerationMagnitude * DeltaTime)) - (AccelerationMagnitude * DeltaTime * glm::cos(AccelerationMagnitude * DeltaTime))) / (glm::pow(AccelerationMagnitude, 3))) * OmegaMatrix);
+		((((glm::sin(AccelerationMagnitude * DeltaTime)) - (AccelerationMagnitude * DeltaTime * glm::cos(AccelerationMagnitude * DeltaTime))) / (glm::pow(AccelerationMagnitude, 3))) * SkewMatrix);
 
 	return InitialPositionVector + (InverseInitialOrientationMatrix * ((R1 * BodyVelocityVector) + (R2 * BodyAccelerationVector)));
 }
@@ -228,6 +232,13 @@ void UDISComponent::HandleEntityStatePDU(UGRILL_EntityStatePDU* NewEntityStatePD
 	OnReceivedEntityStatePDU.Broadcast(NewEntityStatePDU);
 
 	GroundClamping_Implementation();
+
+	//If tick is not enabled and dead reckoning is enabled, then enable tick
+	//Tick is off by default to prevent race conditions since Dead Reckoning relies on the Entity State PDU
+	if (!this->IsComponentTickEnabled() && PerformDeadReckoning)
+	{
+		this->SetComponentTickEnabled(true);
+	}
 }
 
 void UDISComponent::HandleEntityStateUpdatePDU(UGRILL_EntityStateUpdatePDU* NewEntityStateUpdatePDU)
@@ -250,6 +261,13 @@ void UDISComponent::HandleEntityStateUpdatePDU(UGRILL_EntityStateUpdatePDU* NewE
 	OnReceivedEntityStateUpdatePDU.Broadcast(NewEntityStateUpdatePDU);
 
 	GroundClamping_Implementation();
+
+	//If tick is not enabled and dead reckoning is enabled, then enable tick
+	//Tick is off by default to prevent race conditions since Dead Reckoning relies on the Entity State PDU
+	if (!this->IsComponentTickEnabled() && PerformDeadReckoning)
+	{
+		this->SetComponentTickEnabled(true);
+	}
 }
 
 void UDISComponent::HandleFirePDU(UGRILL_FirePDU* FirePDUIn)
@@ -272,9 +290,16 @@ bool UDISComponent::DeadReckoning(UGRILL_EntityStatePDU* EntityPDUToDeadReckon, 
 {
 	//Check if dead reckoning should be performed and if the entity is owned by another sim on the network
 	//If not, then don't do dead reckoning
-	if (!(PerformDeadReckoning && SpawnedFromNetwork))
+	if (!PerformDeadReckoning || !SpawnedFromNetwork)
 	{
 		PerformDeadReckoning = false;
+		return false;
+	}
+
+	//Check if the Entity to Dead Reckon is valid. If not, don't try to perform dead reckoning on it
+	if (!IsValid(EntityPDUToDeadReckon))
+	{
+		UE_LOG(LogDISComponent, Error, TEXT("Entity PDU passed to Dead Reckon is not valid. Exiting Dead Reckoning early."));
 		return false;
 	}
 	
@@ -580,6 +605,12 @@ void UDISComponent::GroundClamping_Implementation()
 	//Verify that ground clamping is enabled, the entity is owned by another sim, is of the ground domain, and that it is not a munition
 	if (PerformGroundClamping && SpawnedFromNetwork && EntityType.Domain == 1 && EntityType.EntityKind != 2)
 	{
+		//If the PDU we're going to ground clamp is not valid, don't try to use it
+		if (!IsValid(DeadReckoningEntityStatePDU)) 
+		{
+			return;
+		}
+
 		//Get the most recent calculated ECEF location of the entity from the dead reckoned ESPDU
 		FEarthCenteredEarthFixedDouble ecefDouble = FEarthCenteredEarthFixedDouble(DeadReckoningEntityStatePDU->EntityStatePDUStruct.EntityLocationDouble[0],
 			DeadReckoningEntityStatePDU->EntityStatePDUStruct.EntityLocationDouble[1], DeadReckoningEntityStatePDU->EntityStatePDUStruct.EntityLocationDouble[2]);
