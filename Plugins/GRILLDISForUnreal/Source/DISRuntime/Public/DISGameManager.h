@@ -21,8 +21,8 @@ class DISRUNTIME_API ADISGameManager : public AInfo
 {
 	GENERATED_BODY()
 
-public:
 
+public:
 	ADISGameManager();
 
 	/**
