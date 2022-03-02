@@ -82,6 +82,10 @@ void ADISGameManager::Tick(float DeltaTime)
 			{
 				DISComponent->DoDeadReckoning(DeltaTime);
 			}
+			else 
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Cannot find DISComponent on entity %s"), *DisEntity.second->GetName())
+			}
 		}
 		else
 		{
