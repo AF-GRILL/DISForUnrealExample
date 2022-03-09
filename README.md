@@ -10,10 +10,11 @@
 # Usage
 
 - Once the project is open, verify that DIS Enumeration mappings exist.
-    - Click on the 'GRILL DIS' button in the Level Editor toolbar or go to Project Settings > GRILL DIS.
-    - Expand the 'DIS Mappings' section and then expand the 'DIS Enumeration Mappings' dropdown.
-    - Add desired actor to DIS Enumeration mappings.
-        - _**NOTE:**_ Currently the actors tied to DIS Enumerations have to inherit from the DISEntity_Base actor supplied by the GRILL DIS for Unreal plugin.
+    - Click on the DIS Game Manager in the 'DIS_DemoLevel' level and locate the DIS Class Enum UAsset that is currently set to the DIS Enumeration Mapping variable.
+    	- Open up the UAsset and then expand the 'DIS Enumeration Mappings' dropdown.
+    	- Add desired actor to DIS Enumeration mappings.
+	        - _**NOTE:**_ The actors tied to DIS Enumerations have to implement the DIS Interface supplied by the GRILL DIS for Unreal plugin and also should have a DIS Component attached to them. Implement the DIS Interface functions to return the
+			associated DIS component of the actor.
 - After DIS Enumeration mappings are created, click on play.
 - Click on the 'DIS Options' button on the menu that appears on start.
     - Change the visuals as desired.
