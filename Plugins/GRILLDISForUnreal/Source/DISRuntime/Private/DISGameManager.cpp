@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "DISComponent.h"
 #include "PDUProcessor.h"
+#include "UDPSubsystem.h"
 
 DEFINE_LOG_CATEGORY(LogDISGameManager);
 
@@ -49,22 +50,47 @@ void ADISGameManager::BeginPlay()
 	GetGameInstance()->GetSubsystem<UPDUProcessor>()->OnDetonationPDUProcessed.AddDynamic(this, &ADISGameManager::HandleDetonationPDU);
 	GetGameInstance()->GetSubsystem<UPDUProcessor>()->OnRemoveEntityPDUProcessed.AddDynamic(this, &ADISGameManager::HandleRemoveEntityPDU);
 
-	//Initialize DISClassMappings from the loaded settings
-	for (FDISClassEnumStruct DISMapping : DISClassEnum->DISClassEnumArray)
+	//Auto connect sockets if needed
+	if (AutoConnectReceiveAddresses) 
 	{
-		for (FEntityType EntityType : DISMapping.AssociatedDISEnumerations)
+		for (FSocketInfo socket : ReceiveSocketsToSetup)
 		{
-			//If an actor was not found -- check to see if there is an associated actor for the entity type
-			TSoftClassPtr<AActor>* associatedSoftClassReference = DISClassMappings.Find(EntityType);
-
-			if (associatedSoftClassReference != nullptr)
-			{
-				UE_LOG(LogDISGameManager, Warning, TEXT("A DIS Enumeration mapping already exists for %s and is linked to %s. This enumeration will now point to: %s"), *EntityType.ToString(), *associatedSoftClassReference->GetAssetName(), *DISMapping.DISEntity.GetAssetName());
-			}
-
-			DISClassMappings.Add(EntityType, DISMapping.DISEntity);
-			RawDISClassMappings.insert_or_assign(EntityType, DISMapping.DISEntity);
+			int SocketID;
+			GetGameInstance()->GetSubsystem<UUDPSubsystem>()->OpenReceiveSocket(FSocketSettings(), SocketID, socket.IpAddress, socket.Port);
 		}
+	}
+	if (AutoConnectSendAddresses)
+	{
+		for (FSocketInfo socket : SendSocketsToSetup)
+		{
+			int SocketID;
+			GetGameInstance()->GetSubsystem<UUDPSubsystem>()->OpenSendSocket(FSocketSettings(), SocketID, socket.IpAddress, socket.Port);
+		}
+	}
+
+	if (DISClassEnum) 
+	{
+		//Initialize DISClassMappings from the loaded settings
+		for (FDISClassEnumStruct DISMapping : DISClassEnum->DISClassEnumArray)
+		{
+			for (FEntityType EntityType : DISMapping.AssociatedDISEnumerations)
+			{
+				//If an actor was not found -- check to see if there is an associated actor for the entity type
+				TSoftClassPtr<AActor>* associatedSoftClassReference = DISClassMappings.Find(EntityType);
+
+				if (associatedSoftClassReference != nullptr)
+				{
+					UE_LOG(LogDISGameManager, Warning, TEXT("A DIS Enumeration mapping already exists for %s and is linked to %s. This enumeration will now point to: %s"), *EntityType.ToString(), *associatedSoftClassReference->GetAssetName(), *DISMapping.DISEntity.GetAssetName());
+				}
+
+				DISClassMappings.Add(EntityType, DISMapping.DISEntity);
+				RawDISClassMappings.insert_or_assign(EntityType, DISMapping.DISEntity);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogDISGameManager, Error, TEXT("No DIS Class Enum Mapping has been set within the DIS Game Manager actor!"));
 	}
 }
 
