@@ -10,11 +10,13 @@
 # Usage
 
 - Once the project is open, verify that DIS Enumeration mappings exist.
-    - Click on the DIS Game Manager in the 'DIS_DemoLevel' level and locate the DIS Class Enum UAsset that is currently set to the DIS Enumeration Mapping variable.
+    - Click on the DIS Game Manager in the 'DIS_DemoLevel' level and locate the DIS Enumeration Mapping UAsset that is currently set to the DIS Enumeration Mapping variable.
     	- Open up the UAsset and then expand the 'DIS Enumeration Mappings' dropdown.
     	- Add desired actor to DIS Enumeration mappings.
 	        - _**NOTE:**_ The actors tied to DIS Enumerations have to implement the DIS Interface supplied by the GRILL DIS for Unreal plugin and also should have a DIS Component attached to them. Implement the DIS Interface functions to return the
 			associated DIS component of the actor.
+	- _**NOTE:**_ If desired, a new DIS Enumeration Mapping UAsset can be created. To do so, right click in the Content Browser, hover Blueprints, and then select the DIS Enumeration Mapping UAsset option. Once created, populate the mappings, 
+	and then replace the Enumeration Mapping in the DISGameManager actor with the new created mapping.
 - After DIS Enumeration mappings are created, click on play.
 - Click on the 'DIS Options' button on the menu that appears on start.
     - Change the visuals as desired.
@@ -26,6 +28,7 @@
             - _**NOTE:**_ These visuals are buggy with Cesium if relocating the origin is enabled.
     - Change the network settings as desired.
         - Exercise ID/Site ID/Application ID: DIS specific settings.
+			- _**NOTE:**_ Exercise ID needs to match that of what is being sent on the network in order to handle the received packets.
         - Receive IP Address: Address to receive DIS packets on.
             - _**NOTE:**_ A receive IP address of 0.0.0.0 will listen to all DIS packets on the network.
         - Receive Port: The port to receive DIS packets on.
@@ -68,6 +71,6 @@
 - If no DIS entities are appearing in the game, try the below steps:
     - Look at the 'World Outliner' and check if the DIS Entities show there.
         - If so, try enabling DIS labels if not enabled already to locate them in the world.
-    - Look at the 'Output Log' and see if there are warning messages being printed out from the DISGameState stating that 'No mapping exists between an actor and the DIS Enumeration of: ...'
+    - Look at the 'Output Log' and see if there are warning messages being printed out from the DISGameManager stating that 'No mapping exists between an actor and the DIS Enumeration of: ...'
         - If so, double check the DIS Enumeration mappings that were setup ealier and verify they were setup appropriately.
     - Verify DIS packets are being sent on the network. This can be done via Wireshark.
