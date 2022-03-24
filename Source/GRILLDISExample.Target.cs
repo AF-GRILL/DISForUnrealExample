@@ -10,6 +10,6 @@ public class GRILLDISExampleTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V2;
 
-		ExtraModuleNames.AddRange( new string[] { "GRILLDISExampleExample" } );
+		ExtraModuleNames.AddRange( new string[] { "GRILLDISExample" } );
 	}
 }

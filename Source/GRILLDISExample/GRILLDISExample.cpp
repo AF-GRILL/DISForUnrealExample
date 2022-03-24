@@ -3,4 +3,4 @@
 #include "GRILLDISExample.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, OpenDISIronDev2021, "OpenDISIronDev2021" );
+IMPLEMENT_PRIMARY_GAME_MODULE( FDefaultGameModuleImpl, GRILLDISExample, "GRILLDISExample" );

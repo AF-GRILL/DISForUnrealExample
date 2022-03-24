@@ -11,13 +11,14 @@ void UDIS_BPFL::CalculateLatLonHeightFromEcefXYZ(const FEarthCenteredEarthFixedD
 	constexpr double EarthSemiMajorRadiusMeters = 6378137;
 	constexpr double EarthSemiMinorRadiusMeters = 6356752.3142;
 
-	const double Longitude = FMath::RadiansToDegrees(FMath::Atan2(Ecef.Y, Ecef.X));
-	// Latitude accurate to ~5 decimal places
-	const double Latitude = FMath::RadiansToDegrees(FMath::Atan((FMath::Square(EarthSemiMajorRadiusMeters) / FMath::Square(EarthSemiMinorRadiusMeters)) * (Ecef.Z / FMath::Sqrt(FMath::Square(Ecef.X) + FMath::Square(Ecef.Y)))));
-
 	const double EarthSemiMajorRadiusMetersSquare = FMath::Square(EarthSemiMajorRadiusMeters);
 	const double EarthSemiMinorRadiusMetersSquare = FMath::Square(EarthSemiMinorRadiusMeters);
 	const double DistFromXToY = FMath::Sqrt(FMath::Square(Ecef.X) + FMath::Square(Ecef.Y));
+
+	const double Longitude = FMath::RadiansToDegrees(FMath::Atan2(Ecef.Y, Ecef.X));
+	// Latitude accurate to ~5 decimal places
+	const double Latitude = FMath::RadiansToDegrees(FMath::Atan((EarthSemiMajorRadiusMetersSquare / EarthSemiMinorRadiusMetersSquare) * (Ecef.Z / DistFromXToY)));
+
 	const double CosLatitude = FMath::Cos(FMath::DegreesToRadians(Latitude));
 	const double SinLatitude = FMath::Sin(FMath::DegreesToRadians(Latitude));
 	const double Height = (DistFromXToY / CosLatitude) - (EarthSemiMajorRadiusMetersSquare / FMath::Sqrt(
@@ -327,6 +328,13 @@ void UDIS_BPFL::CalculateHeadingPitchRollRadiansFromPsiThetaPhiDegreesAtLatLon(c
 
 void UDIS_BPFL::CalculateEcefXYZFromUnrealLocation(const FVector UELocation, AGeoReferencingSystem* GeoReferencingSystem, FEarthCenteredEarthFixedFloat& ECEF)
 {
+	if (!IsValid(GeoReferencingSystem))
+	{
+		ECEF = FEarthCenteredEarthFixedFloat();
+		UE_LOG(LogDIS_BPFL, Warning, TEXT("Invalid GeoReference was passed to get EcefXYZ from. Returning ECEF XYZ of (0, 0, 0)."));
+		return;
+	}
+
 	FCartesianCoordinates cartCoords;
 	GeoReferencingSystem->EngineToECEF(UELocation, cartCoords);
 
@@ -337,6 +345,13 @@ void UDIS_BPFL::CalculateEcefXYZFromUnrealLocation(const FVector UELocation, AGe
 
 void UDIS_BPFL::CalculateLatLonHeightFromUnrealLocation(const FVector UELocation, AGeoReferencingSystem* GeoReferencingSystem, FLatLonHeightFloat& LatLonHeightDegreesMeters)
 {
+	if (!IsValid(GeoReferencingSystem))
+	{
+		LatLonHeightDegreesMeters = FLatLonHeightFloat();
+		UE_LOG(LogDIS_BPFL, Warning, TEXT("Invalid GeoReference was passed to get lat, lon, height from. Returning lat, lon, height of (0, 0, 0)."));
+		return;
+	}
+
 	FCartesianCoordinates cartCoords;
 	GeoReferencingSystem->EngineToECEF(UELocation, cartCoords);
 
@@ -402,7 +417,6 @@ void UDIS_BPFL::GetEntityUnrealLocationFromEntityStatePdu(const FEntityStatePDU 
 	FCartesianCoordinates cartCoords = FCartesianCoordinates(ecefDouble.X, ecefDouble.Y, ecefDouble.Z);
 
 	GeoReferencingSystem->ECEFToEngine(cartCoords, EntityLocation);
-
 }
 
 void UDIS_BPFL::GetEntityUnrealLocationAndOrientation(const FEntityStatePDU EntityStatePdu, AGeoReferencingSystem* GeoReferencingSystem, FVector& EntityLocation, FRotator& EntityRotation)
@@ -422,6 +436,13 @@ void UDIS_BPFL::GetEntityUnrealLocationAndOrientation(const FEntityStatePDU Enti
 
 void UDIS_BPFL::GetNorthEastDownVectorsFromUnrealLocation(const FVector UnrealLocation,	AGeoReferencingSystem* GeoReferencingSystem, FNorthEastDown& NorthEastDownVectors)
 {
+	if (!IsValid(GeoReferencingSystem))
+	{
+		NorthEastDownVectors = FNorthEastDown();
+		UE_LOG(LogDIS_BPFL, Warning, TEXT("Invalid GeoReference was passed to get north, east, down vectors from. Returning north, east, down of (0, 0, 0)."));
+		return;
+	}
+
 	FCartesianCoordinates EcefLocation;
 	GeoReferencingSystem->EngineToECEF(UnrealLocation, EcefLocation);
 
@@ -441,6 +462,13 @@ void UDIS_BPFL::GetEastNorthUpVectorsFromUnrealLocation(const FVector UnrealLoca
 
 void UDIS_BPFL::GetHeadingPitchRollFromUnrealRotation(const FRotator EntityUnrealRotation, const FVector EntityUnrealLocation, AGeoReferencingSystem* GeoReferencingSystem, FHeadingPitchRoll& HeadingPitchRollDegrees)
 {
+	if (!IsValid(GeoReferencingSystem))
+	{
+		HeadingPitchRollDegrees = FHeadingPitchRoll();
+		UE_LOG(LogDIS_BPFL, Warning, TEXT("Invalid GeoReference was passed to get heading, pitch, roll rotation from. Returning heading, pitch, roll of (0, 0, 0)."));
+		return;
+	}
+
 	FNorthEastDown NorthEastDownVectors;
 	GetNorthEastDownVectorsFromUnrealLocation(EntityUnrealLocation, GeoReferencingSystem, NorthEastDownVectors);
 
@@ -460,6 +488,22 @@ void UDIS_BPFL::GetHeadingPitchRollFromUnrealRotation(const FRotator EntityUnrea
 	HeadingPitchRollDegrees.Pitch = EntityUnrealRotation.Pitch - YAxisRotationAngle;
 	//Heading of 0 is East, but heading of 0 in Unreal is North. Add 90 to make up for the offset
 	HeadingPitchRollDegrees.Heading = EntityUnrealRotation.Yaw - ZAxisRotationAngle + 90;
+}
+
+void UDIS_BPFL::GetPsiThetaPhiDegreesFromUnrealRotation(const FRotator EntityUnrealRotation, const FVector EntityUnrealLocation, AGeoReferencingSystem* GeoReferencingSystem, FPsiThetaPhi& PsiThetaPhiDegrees)
+{
+	FHeadingPitchRoll headingPitchRollDegrees;
+	FLatLonHeightFloat latLonHeightDegrees;
+	GetHeadingPitchRollFromUnrealRotation(EntityUnrealRotation, EntityUnrealLocation, GeoReferencingSystem, headingPitchRollDegrees);
+	CalculateLatLonHeightFromUnrealLocation(EntityUnrealLocation, GeoReferencingSystem, latLonHeightDegrees);
+
+	CalculatePsiThetaPhiDegreesFromHeadingPitchRollDegreesAtLatLon(headingPitchRollDegrees, latLonHeightDegrees.Latitude, latLonHeightDegrees.Longitude, PsiThetaPhiDegrees);
+}
+
+void UDIS_BPFL::GetEcefXYZAndPsiThetaPhiDegreesFromUnreal(const FRotator EntityUnrealRotation, const FVector EntityUnrealLocation, AGeoReferencingSystem* GeoReferencingSystem, FEarthCenteredEarthFixedFloat& EcefXYZ, FPsiThetaPhi& PsiThetaPhiDegrees)
+{
+	CalculateEcefXYZFromUnrealLocation(EntityUnrealLocation, GeoReferencingSystem, EcefXYZ);
+	GetPsiThetaPhiDegreesFromUnrealRotation(EntityUnrealRotation, EntityUnrealLocation, GeoReferencingSystem, PsiThetaPhiDegrees);
 }
 
 void UDIS_BPFL::GetEastNorthUpVectorsFromNorthEastDownVectors(const FNorthEastDown NorthEastDownVectors, FEastNorthUp& EastNorthUpVectors)
