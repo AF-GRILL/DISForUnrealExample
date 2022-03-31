@@ -10,7 +10,7 @@
 
 # Usage
 
-![DIS Game Manager](/uploads/e5c5ebbc74a6af5bd8eff63efa326b3b/image.png)
+![DISGameManager](Resources/ReadMeImages/DISGameManager.png)
 
 - Once the project is open, verify that DIS Enumeration mappings exist.
     - Click on the DIS Game Manager in the 'DIS_DemoLevel' level and locate the DIS Enumeration Mapping UAsset that is currently set to the DIS Enumeration Mapping variable.
@@ -19,15 +19,15 @@
 	        - _**NOTE:**_ The actors tied to DIS Enumerations have to implement the DIS Interface supplied by the GRILL DIS for Unreal plugin and also should have a DIS Component attached to them. Implement the DIS Interface functions to return the associated DIS component of the actor. Refer to the _**GRILL DIS for Unreal**_ plugin readme for more information.
 	- _**NOTE:**_ If desired, a new DIS Enumeration Mapping UAsset can be created. To do so, right click in the Content Browser, hover Blueprints, and then select the DIS Enumeration Mapping UAsset option. Once created, populate the mappings, and then replace the Enumeration Mapping in the DISGameManager actor with the new created mapping. Refer to the _**GRILL DIS for Unreal**_ plugin readme for more information.
 
-![DISEnumMappingUAsset](/uploads/e4aeae7696eee1dc13c730ad55ff2e66/image.png)
+![DISEnumMappingsUAsset](Resources/ReadMeImages/DISEnumMappingsUAsset.png)
 
-![DISEnumMappings](/uploads/664dbca6f0271ce5a97708c373de78af/image.png)
+![DISEnumMappingsSettings](Resources/ReadMeImages/DISEnumMappingsSettings.png)
 
 - After DIS Enumeration mappings are created, click on play.
 
-![DISOptionsButton](/uploads/e9c5280b2fc445b55b177b7e1bf4b0ad/image.png)
+![DISOptionsButton](Resources/ReadMeImages/DISOptionsButton.png)
 
-![DISVisualOptions](/uploads/98cfc0b98b528f5a0b2034fc995ca355/image.png)
+![DISVisualOptions](Resources/ReadMeImages/DISVisualOptions.png)
 
 - Click on the 'DIS Options' button on the menu that appears on start.
     - Change the visuals as desired.
@@ -38,7 +38,7 @@
         - Entity Ribbon Trails: Trails that appear behind the DIS Entities to show the path that they have taken.
             - _**NOTE:**_ These visuals are buggy with Cesium if relocating the origin is enabled.
 
-![DISNetworkingOptions](/uploads/105bf435acf35e7897dc5c6bfd54c5b5/image.png)
+![DISNetworkingOptions](Resources/ReadMeImages/DISNetworkingOptions.png)
 
 - Change the network settings as desired.
     - Exercise ID/Site ID/Application ID: DIS specific settings.
@@ -55,7 +55,7 @@
 - Once all desired options are set, hit 'Apply & Close'. Then click on 'Start' if haven't already.
     - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via the 'Options' button that appears in the top right hand corner.
 
-![InGameMenu](/uploads/8f105a47e73dbf9b683eb5162ee112d3/image.png)
+![InGameMenu](Resources/ReadMeImages/InGameMenu.png)
 
 - If DIS packets are being sent across the network and DIS mappings have been set, then DIS entities should start appearing in the world.
     - _**NOTE:**_ If custom DIS packets are desired to be sent by the sim, refer to the Modifying section below.
@@ -69,9 +69,9 @@
             - Orbital View - Local: An orbital view of the entity. Moves and rotates with the entity, but can be further rotated around the entity in an orbital perspective. See the below 'Movement' section for details on controlling it.
             - Orbital View - World: An orbital view of the entity. Moves with the entity, but does not rotate with it. It be rotated around the entity in an orbital perspective. See the below 'Movement' section for details on controlling it.
 
-![DISEntityViewer](/uploads/4a6f84d19c9be55ef79da082f8d74ada/image.png)
+![DISEntityViewer](Resources/ReadMeImages/DISEntityViewer.png)
 
-![DISEntityCameraOptions](/uploads/2a9da500404e913183d1641a8adb2ac9/DISEntityCameraOptions.png)
+![DISEntityCameraOptions](Resources/ReadMeImages/DISEntityCameraOptions.png)
 
 # Movement
 
@@ -84,7 +84,7 @@
 
 # Modifying
 
-![DISEntities](/uploads/b7c1800fc027ceada6bdc11e882b1245/image.png)
+![DISEntities](Resources/ReadMeImages/DISEntities.png)
 
 - Handling of DIS packets is performed by the each individual DIS Entity.
     - Open up the 'DISEntity_BPBase' actor located in the '\Game\Actors\DISEntities' folder to view how receiving is being performed.
@@ -92,7 +92,7 @@
     - Additional DIS packet processing is performed by the GRILL DIS for Unreal plugin. Refer to its README for additional details.
 - Handling of UDP connections is performed in the 'DISGameState' located in the '\Game\GameModeBPs' folder.
 
-![DISGameState](/uploads/a0e2b745e9a0f95a42389310ef97d029/image.png)
+![DISGameState](Resources/ReadMeImages/DISGameState.png)
 
 # Troubleshooting
 
