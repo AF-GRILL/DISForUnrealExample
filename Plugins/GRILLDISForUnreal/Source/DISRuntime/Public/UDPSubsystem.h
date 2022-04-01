@@ -13,21 +13,35 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogUDPSubsystem, Log, All);
 
+UENUM(Blueprintable)
+enum class EConnectionType : uint8
+{
+	Broadcast,
+	Multicast,
+	Unicast
+};
+
 USTRUCT(Blueprintable)
 struct FSendSocketSettings
 {
 	GENERATED_BODY()
 
-	/** Friendly description of what this socket is to be used for */
+	/** Connection type to use for this send socket. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		EConnectionType SendSocketConnectionType;
+
+	/** Friendly description of what this socket is to be used for. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FString SocketDescription;
 
-	/** Byte size the buffer of the socket should have. Defaults to roughly 2MB */
+	/** Byte size the buffer of the socket should have. Defaults to roughly 2MB. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		int32 BufferSize;
 
 	FSendSocketSettings()
 	{
+		SendSocketConnectionType = EConnectionType::Broadcast;
+
 		SocketDescription = FString(TEXT("UE4-DIS-Send-Socket"));
 
 		BufferSize = 2 * 1024 * 1024;	//default roughly 2mb
@@ -39,15 +53,19 @@ struct FReceiveSocketSettings
 {
 	GENERATED_BODY()
 
-	/** Friendly description of what this socket is to be used for */
+	/** Friendly description of what this socket is to be used for. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FString SocketDescription;
 
-	/** Byte size the buffer of the socket should have. Defaults to roughly 2MB */
+	/** Byte size the buffer of the socket should have. Defaults to roughly 2MB. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		int32 BufferSize;
 
-	/** Whether we should process our data on the gamethread or the udp thread. */
+	/** Whether or not multicast should be used with this receive socket. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		bool bUseMulticast;
+
+	/** Whether we should ignore packets originating from ourself or not. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		bool bIgnorePacketsFromLocalIP;
 
@@ -61,6 +79,7 @@ struct FReceiveSocketSettings
 
 		BufferSize = 2 * 1024 * 1024;	//default roughly 2mb
 
+		bUseMulticast = false;
 		bIgnorePacketsFromLocalIP = true;
 		bReceiveDataOnGameThread = true;
 	}
