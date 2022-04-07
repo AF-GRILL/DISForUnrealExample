@@ -610,19 +610,43 @@ void UDISComponent::GroundClamping_Implementation()
 	if (PerformGroundClamping && SpawnedFromNetwork && EntityType.Domain == 1 && EntityType.EntityKind != 2)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_GroundClamping);
-		//Get the most recent calculated ECEF location of the entity from the dead reckoned ESPDU
-		FEarthCenteredEarthFixedDouble ecefDouble = FEarthCenteredEarthFixedDouble(MostRecentDeadReckonedEntityStatePDU.EntityLocationDouble[0],
+
+		FVector clampDirection;
+
+		//Determine the planet shape being used to figure out clamp direction
+		switch (GeoReferencingSystem->PlanetShape)
+		{
+		case EPlanetShape::RoundPlanet:
+		{
+			//Get the most recent calculated ECEF location of the entity from the dead reckoned ESPDU
+			FEarthCenteredEarthFixedDouble ecefDouble = FEarthCenteredEarthFixedDouble(MostRecentDeadReckonedEntityStatePDU.EntityLocationDouble[0],
 			MostRecentDeadReckonedEntityStatePDU.EntityLocationDouble[1], MostRecentDeadReckonedEntityStatePDU.EntityLocationDouble[2]);
 
-		//Get the LLH location of the entity from the ECEF location
-		FLatLonHeightDouble llhDouble;
-		UDIS_BPFL::CalculateLatLonHeightFromEcefXYZ(ecefDouble, llhDouble);
+			//Get the LLH location of the entity from the ECEF location
+			FLatLonHeightDouble llhDouble;
+			UDIS_BPFL::CalculateLatLonHeightFromEcefXYZ(ecefDouble, llhDouble);
 
-		//Get the North East Down vectors from the calculated LLH
-		FNorthEastDown northEastDownVectors;
-		UDIS_BPFL::CalculateNorthEastDownVectorsFromLatLon(llhDouble.Latitude, llhDouble.Longitude, northEastDownVectors);
-		//Set clamp direction using the North East Down down vector
-		FVector clampDirection = northEastDownVectors.DownVector;
+			//Get the North East Down vectors from the calculated LLH
+			FNorthEastDown northEastDownVectors;
+			UDIS_BPFL::CalculateNorthEastDownVectorsFromLatLon(llhDouble.Latitude, llhDouble.Longitude, northEastDownVectors);
+			//Set clamp direction using the North East Down down vector
+			clampDirection = northEastDownVectors.DownVector;
+
+			break;
+		}
+		case EPlanetShape::FlatPlanet:
+		{
+			clampDirection = FVector::DownVector;
+
+			break;
+		}
+		default:
+		{
+			clampDirection = FVector::DownVector;
+
+			break;
+		}
+		}
 
 		//Get the location the object is supposed to be at according to the most recent dead reckoning update.
 		FVector actorLocation;
