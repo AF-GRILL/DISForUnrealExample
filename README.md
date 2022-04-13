@@ -108,6 +108,12 @@
 - If no DIS entities are appearing in the game, try the below steps:
     - Look at the 'World Outliner' and check if the DIS Entities show there.
         - If so, try enabling DIS labels if not enabled already to locate them in the world.
-    - Look at the 'Output Log' and see if there are warning messages being printed out from the DISGameManager stating that 'No mapping exists between an actor and the DIS Enumeration of: ...'
+    - Look at the 'Output Log' or Log File and see if there are warning messages being printed out from the DISGameManager stating that 'No mapping exists between an actor and the DIS Enumeration of: ...'
         - If so, double check the DIS Enumeration mappings that were setup ealier and verify they were setup appropriately.
     - Verify DIS packets are being sent on the network. This can be done via Wireshark.
+	- If working on a standalone network, verify that the Windows Firewall is not discarding the packets.
+		- Even if packets are seen in Wireshark, the Windows Firewall may still block the UDP DIS traffic.
+		- This can be fixed a few different ways. The below list is not all inclusive:
+			- Make the Network Profile 'Private' in Windows
+			- Add in needed rules into the Firewall to allow the packets through
+			- Disable the Windows Firewall. Should be a last resort.
