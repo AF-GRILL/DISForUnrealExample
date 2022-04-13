@@ -43,14 +43,23 @@
 - Change the network settings as desired.
     - Exercise ID/Site ID/Application ID: DIS specific settings.
 		- _**NOTE:**_ Exercise ID needs to match that of what is being sent on the network in order to handle the received packets.
+	- Connect Recv Socket: Whether or not to connect a receive socket.
+	- Receive Use Multicast: Whether or not the receive socket being connected will use multicast.
+		- _**NOTE:**_ If enabled, the Receive IP Address should be a multicast address.
+	- Receive Loopback: Whether or not the receive socket should listen for loopback traffic (i.e. traffic from local machine).
     - Receive IP Address: Address to receive DIS packets on.
         - _**NOTE:**_ A receive IP address of 0.0.0.0 will listen to all DIS packets on the network.
     - Receive Port: The port to receive DIS packets on.
+	- Connect Send Socket: Whether or not to connect a send socket.
+	- Send Connection Type: The connection type to use for the send socket.
+		- Current types supported are Multicast, Broadcast, and Unicast.
     - Send IP Address: The IP address to send DIS packets on.
     - Send IP Address: The port to send DIS packets on.
 - Click on Connect to connect to the network (opens a UDP socket)
-
-
+- If any issues are encountered on connection attempts, an error message will appear under the network widget.
+	- _**NOTE:**_ The Connect/Disconnect buttons will update based on if any sockets are currently opened.
+	
+![SocketConnectionError](Resources/ReadMeImages/SocketConnectionError.png)
 
 - Once all desired options are set, hit 'Apply & Close'. Then click on 'Start' if haven't already.
     - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via the 'Options' button that appears in the top right hand corner.
