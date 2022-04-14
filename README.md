@@ -62,7 +62,13 @@
 ![SocketConnectionError](Resources/ReadMeImages/SocketConnectionError.png)
 
 - Once all desired options are set, hit 'Apply & Close'. Then click on 'Start' if haven't already.
-    - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via the 'Options' button that appears in the top right hand corner.
+	- After clicking 'Start' you will have to choose between being a view or a player
+		- As Viewer: Fly around and passively view the DIS scenario. Can attach to DIS entities and see DIS info. Does not send DIS.
+		- As Player: Play as First Person Character and shoot. Sends out DIS packets for ESPDU, Fire PDU, Det PDU.
+    - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via:
+		- As Viewer: The 'Options' button that appears in the top right hand corner.
+		- As Player: Pressing 'N' on the keyboard.
+	- _**NOTE:**_ Press 'Z' on the keyboard to bring up an option to return to the main menu at any point after starting.
 
 ![InGameMenu](Resources/ReadMeImages/InGameMenu.png)
 
