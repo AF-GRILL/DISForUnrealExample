@@ -10,6 +10,20 @@
 
 # Usage
 
+- Before opening the project, create  the file `Game.ini` in the [root folder]/Saved/Config/Windows folder containing the following  
+
+``` { .ini }
+[/Game/GameModeBPs/DISGameState.DISGameState_C]
+WorldTerrainCesiumURL=
+WorldTerrainCesiumIonToken=
+WorldTerrainCesiumIonAssetID=
+PhotogrammetryCesiumURL=
+PhotogrammetryCesiumIonToken=
+PhotogrammetryCesiumIonAssetID=
+```  
+
+_**Note:**_ If the URL is set, the Token and AssetID will be ignored
+
 ![DISGameManager](Resources/ReadMeImages/DISGameManager.png)
 
 - Once the project is open, verify that DIS Enumeration mappings exist.
@@ -90,6 +104,11 @@
     - Scrollwheel to increase/decrease speed.
 - Orbital View Camera movement:
     - Click & Hold & Drag inside the Viewport to look around.
+
+# Other Controls
+
+- Z: Return to main menu (left click after pressing to gain control)  
+- N: Open options menu (left click after pressing to gain control)  
 
 # Modifying
 
