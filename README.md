@@ -76,13 +76,6 @@ _**Note:**_ If the URL is set, the Token and AssetID will be ignored
 ![SocketConnectionError](Resources/ReadMeImages/SocketConnectionError.png)
 
 - Once all desired options are set, hit 'Apply & Close'. Then click on 'Start' if haven't already.
-	- After clicking 'Start' you will have to choose between being a view or a player
-		- As Viewer: Fly around and passively view the DIS scenario. Can attach to DIS entities and see DIS info. Does not send DIS.
-		- As Player: Play as First Person Character and shoot. Sends out DIS packets for ESPDU, Fire PDU, Det PDU.
-    - _**NOTE:**_ 'DIS Options' can be changed even after 'Start' is clicked via:
-		- As Viewer: The 'Options' button that appears in the top right hand corner.
-		- As Player: Pressing 'N' on the keyboard.
-	- _**NOTE:**_ Press 'Z' on the keyboard to bring up an option to return to the main menu at any point after starting.
 
 ![InGameMenu](Resources/ReadMeImages/InGameMenu.png)
 
@@ -110,11 +103,6 @@ _**Note:**_ If the URL is set, the Token and AssetID will be ignored
     - Scrollwheel to increase/decrease speed.
 - Orbital View Camera movement:
     - Click & Hold & Drag inside the Viewport to look around.
-
-# Other Controls
-
-- Z: Return to main menu (left click after pressing to gain control)  
-- N: Open options menu (left click after pressing to gain control)  
 
 # Modifying
 
