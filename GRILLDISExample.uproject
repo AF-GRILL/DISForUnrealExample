@@ -33,6 +33,10 @@
 		{
 			"Name": "GeoReferencing",
 			"Enabled": true
+		},
+		{
+			"Name": "GRILLDISForUnreal",
+			"Enabled": true
 		}
 	]
 }
