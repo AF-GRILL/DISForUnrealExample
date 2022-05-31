@@ -1,8 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2022 Gaming Research Integration for Learning Lab. All Rights Reserved.
 
 #include "DISGameManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "DISComponent.h"
+#include "Engine/Engine.h"
 #include "PDUProcessor.h"
 
 DEFINE_LOG_CATEGORY(LogDISGameManager);
@@ -19,7 +20,7 @@ ADISGameManager* ADISGameManager::GetDISGameManager(UObject* WorldContextObject)
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
 		TArray<AActor*> Actors;
-		UGameplayStatics::GetAllActorsOfClass(World, ADISGameManager::StaticClass(), Actors);
+		UGameplayStatics::GetAllActorsOfClass(Cast<UObject>(World), ADISGameManager::StaticClass(), Actors);
 		int NbActors = Actors.Num();
 		if (NbActors == 0)
 		{
@@ -230,7 +231,7 @@ void ADISGameManager::HandleRemoveEntityPDU(FRemoveEntityPDU RemoveEntityPDUIn)
 
 void ADISGameManager::HandleStopFreezePDU(FStopFreezePDU StopFreezePDUIn)
 {
-	//Verify that we are the appropriate sim to handle the RemoveEntityPDU
+	//Verify that we are the appropriate sim to handle the StopFreezePDU
 	if (StopFreezePDUIn.ExerciseID == ExerciseID && StopFreezePDUIn.ReceivingEntityID.Site == SiteID && StopFreezePDUIn.ReceivingEntityID.Application == ApplicationID)
 	{
 		//Get associated OpenDISComponent and relay information
@@ -245,7 +246,7 @@ void ADISGameManager::HandleStopFreezePDU(FStopFreezePDU StopFreezePDUIn)
 
 void ADISGameManager::HandleStartResumePDU(FStartResumePDU StartResumePDUIn)
 {
-	//Verify that we are the appropriate sim to handle the RemoveEntityPDU
+	//Verify that we are the appropriate sim to handle the StartResumePDU
 	if (StartResumePDUIn.ExerciseID == ExerciseID && StartResumePDUIn.ReceivingEntityID.Site == SiteID && StartResumePDUIn.ReceivingEntityID.Application == ApplicationID)
 	{
 		//Get associated OpenDISComponent and relay information
