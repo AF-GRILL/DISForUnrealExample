@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2022 Gaming Research Integration for Learning Lab. All Rights Reserved.
 
 #pragma once
 
@@ -14,19 +14,19 @@ struct FStopFreezePDU : public FSimulationManagementFamilyPDU
 	GENERATED_BODY()
 
 	/** The  real-world time at which the entity/exercise is to start/resume in the exercise. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|StopFreeze")
 		FClockTime RealWorldTime;
 	/** The reason that an entity or exercise was stopped/frozen. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|StopFreeze")
 		EReason Reason;
 	/** Specification of the internal behavior of the simulation and its appearance while frozen to other participants of the exercise */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|StopFreeze")
 		int32 FrozenBehavior;
 	/** Unused padding */
 	UPROPERTY()
 		int32 PaddingOne;
 	/** The specific and unique stop/freeze request being made by the simulation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|StopFreeze")
 		int64 RequestID;
 
 	FStopFreezePDU() : FSimulationManagementFamilyPDU()

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2022 Gaming Research Integration for Learning Lab. All Rights Reserved.
 
 #pragma once
 
@@ -17,7 +17,7 @@ struct FPDU
 	UPROPERTY()
 		uint8 ProtocolVersion;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs")
 		uint8 ExerciseID;
 
 	/** Type of pdu, unique for each PDU struct */

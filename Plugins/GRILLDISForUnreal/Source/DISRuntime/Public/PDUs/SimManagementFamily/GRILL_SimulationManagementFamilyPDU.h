@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2022 Gaming Research Integration for Learning Lab. All Rights Reserved.
 
 #pragma once
 
@@ -14,10 +14,10 @@ struct FSimulationManagementFamilyPDU : public FPDU
 	GENERATED_BODY()
 
     /** The site,  application, and reference number of the originating simulation or entity. */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		FEntityID OriginatingEntityID;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|EntityStateFamily")
+        FEntityID OriginatingEntityID;
     /** The site, application, and reference number of the receiving simulation or entity. This can be used to filter packets to the correct simulations/entities */
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GRILL DIS|Structs|PDUs|EntityStateFamily")
 		FEntityID ReceivingEntityID;
 
     FSimulationManagementFamilyPDU() : FPDU() 
