@@ -36,7 +36,8 @@
 		},
 		{
 			"Name": "GRILLDISForUnreal",
-			"Enabled": true
+			"Enabled": true,
+			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/e0a0a5b841b54fd7b0e7e35bbf50da25"
 		}
 	]
 }
