@@ -5,8 +5,12 @@
 # Get Started
 
 - This example project utilizes Unreal Engine 4.27.
-- Clone this repository
+- [Clone this repository](# Cloning This Repository)
 - Open GRILLDISExample\GRILLDISExample.uproject and allow it to build modules.
+
+# Cloning This Repository
+
+This repository includes a submodule that may be updated frequently. If you have cloned this repository with `git clone` you must also run the command `git submodule update --init --recursive` to ensure that the submodule code is cloned. However, you can skip this step by cloning this repository with the command `git clone [URL] --recurse-submodule`
 
 # Usage
 
