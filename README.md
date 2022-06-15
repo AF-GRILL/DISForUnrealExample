@@ -5,7 +5,7 @@
 # Get Started
 
 - This example project utilizes Unreal Engine 4.27.
-- [Clone this repository](# Cloning This Repository)
+- Clone this repository
 - Open GRILLDISExample\GRILLDISExample.uproject and allow it to build modules.
 
 # Cloning This Repository
