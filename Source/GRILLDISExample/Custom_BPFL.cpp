@@ -18,16 +18,3 @@ FString UCustom_BPFL::GetCustomConfigVar_String(FString SectionName, FString Var
 	);
 	return Value;
 }
-
-void UCustom_BPFL::SetTmsUrl(UCesiumTileMapServiceRasterOverlay* TmsServer, FString NewUrl)
-{
-	TmsServer->Url = NewUrl;
-	TmsServer->SetActive(true);
-}
-
-void UCustom_BPFL::SetRasterOverlayData(UCesiumIonRasterOverlay* IonRasterOverlay, FString NewIonAccessToken, int NewIonAssetId)
-{
-	IonRasterOverlay->IonAssetID = NewIonAssetId;
-	IonRasterOverlay->IonAccessToken = NewIonAccessToken;
-	IonRasterOverlay->SetActive(true);
-}
