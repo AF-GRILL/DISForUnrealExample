@@ -10,7 +10,9 @@
 
 # Cloning This Repository
 
-This repository includes a submodule that may be updated frequently. If you have cloned this repository with `git clone` you must also run the command `git submodule update --init --recursive` to ensure that the submodule code is cloned. However, you can skip this step by cloning this repository with the command `git clone [URL] --recurse-submodule`
+This repository contains lfs files and must be cloned. Currently, GitHub does not support resolving lfs files through the download zip option. You can use the command `git clone --recurse-submodule https://github.com/AF-GRILL/DISForUnrealExample.git` to ensure the project is resolved properly.
+
+This repository includes a submodule that may be updated frequently. If you have cloned this repository with `git clone https://github.com/AF-GRILL/DISForUnrealExample.git` you must also run the command `git submodule update --init --recursive` to ensure that the submodule code is cloned. However, you can skip this step by cloning this repository with the command `git clone --recurse-submodule https://github.com/AF-GRILL/DISForUnrealExample.git` as stated above.
 
 # Usage
 
