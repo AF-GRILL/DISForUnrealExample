@@ -1,3 +1,3 @@
-[submodule "Plugins/GRILLDISForUnreal"]
-	path = Plugins/GRILLDISForUnreal
+[submodule "Plugins/DISPluginForUnreal"]
+	path = Plugins/DISPluginForUnreal
 	url = https://github.com/AF-GRILL/DISPluginForUnreal.git
