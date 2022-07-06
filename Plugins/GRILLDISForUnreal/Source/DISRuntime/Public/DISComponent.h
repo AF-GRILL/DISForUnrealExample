@@ -55,6 +55,7 @@ public:
 
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void InitializeComponent() override;
 
 	void HandleEntityStatePDU(FEntityStatePDU NewEntityStatePDU);
 	void HandleEntityStateUpdatePDU(FEntityStateUpdatePDU NewEntityStateUpdatePDU);
@@ -125,7 +126,6 @@ public:
 
 	/**
 	 * Clamps an entity to the ground. Should call OnGroundClampingUpdate event when finished.
-	 * Returns whether or not ground clamping was successful.
 	 */	
 	UFUNCTION(BlueprintNativeEvent, Category = "GRILL DIS|DIS Component")
 		void GroundClamping();
