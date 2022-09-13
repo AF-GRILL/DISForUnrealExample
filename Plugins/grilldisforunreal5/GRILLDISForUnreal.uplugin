@@ -1,0 +1,38 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "GRILL DIS for Unreal",
+	"Description": "Utilities for implementing and interacting with DIS network packets through using OpenDIS.",
+	"Category": "Networking",
+	"CreatedBy": "GRILL",
+	"CreatedByURL": "https://www.af-grill.com/",
+	"DocsURL": "",
+	"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/e0a0a5b841b54fd7b0e7e35bbf50da25",
+	"SupportURL": "https://www.af-grill.com/work-with-us/else",
+	"EngineVersion": "5.0.0",
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"CanContainContent": true,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "DISRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [ "Win64" ]
+		},
+		{
+			"Name": "DISEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit",
+			"WhitelistPlatforms": [ "Win64" ]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GeoReferencing",
+			"Enabled": true
+		}
+	]
+}
