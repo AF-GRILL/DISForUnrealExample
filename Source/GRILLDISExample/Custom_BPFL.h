@@ -25,5 +25,4 @@ class GRILLDISEXAMPLE_API UCustom_BPFL : public UBlueprintFunctionLibrary
 
 	UFUNCTION(BlueprintCallable)
 	static void SetRasterOverlayData(UCesiumIonRasterOverlay* IonRasterOverlay, FString NewIonAccessToken, int NewIonAssetId);
-
 };
