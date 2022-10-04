@@ -106,6 +106,7 @@ PhotogrammetryCesiumIonAssetID=354307
 		- Viewer: A free flying, stealth viewer. Does not emit DIS packets.
 		- Tank: A drivable APC Stryker ground vehicle. Emits DIS packets.
 		- Aircraft: A flyable F-16. Emits DIS packets.
+			- _**NOTE:**_ The F-16 utilizes JSBSim. It has best performance when operating at 120 FPS.
 
 ![InGameMenu](Resources/ReadMeImages/InGameMenu.png)
 
