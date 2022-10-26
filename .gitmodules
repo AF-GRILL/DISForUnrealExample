@@ -1,4 +1,4 @@
 [submodule "Plugins/DISPluginForUnreal"]
 	path = Plugins/DISPluginForUnreal
-	url = http://10.0.1.229/huggins/grilldisforunreal.git
+	url = https://github.com/AF-GRILL/DISPluginForUnreal.git
 	branch = ue5
