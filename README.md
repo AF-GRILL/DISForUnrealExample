@@ -5,7 +5,7 @@
 # Get Started
 
 - This example project utilizes Unreal Engine 5.0.
-- [Clone this repository](# Cloning This Repository)
+- [Clone this repository](#Cloning This Repository)
 - Open GRILLDISExample\GRILLDISExample.uproject and allow it to build modules.
 
 # Cloning This Repository
@@ -111,16 +111,16 @@ PhotogrammetryCesiumIonAssetID=354307
 ![InGameMenu](Resources/ReadMeImages/InGameMenu.png)
 
 - If DIS packets are being sent across the network and DIS mappings have been set, then DIS entities should start appearing in the world.
-    - _**NOTE:**_ If custom DIS packets are desired to be sent by the sim, refer to the Modifying section below.
+    - _**NOTE:**_ If custom DIS packets are desired to be sent by the sim, refer to the [Modifying section](#modifying) below.
 - Click on the 'Entities' button in the top right hand corner of the screen to see available DIS Entities in the world.
     - The DIS Entities labels in the listing can be selected to view at various camera angles.
     - Either double click on an entity to go to direct view or select an entity and change the camera dropdown on the bottom right.
         - _**NOTE:**_ Once the camera dropdown is changed away from 'Free Flying', just clicking on an entity will change the camera view to that entity.
         - The available camera options are:
-            - Free Flying: Not attached to an entity. User controlled. See the below 'Movement' section for details on controlling it.
+            - Free Flying: Not attached to an entity. User controlled. See the below [Movement section](#movement) for details on controlling it.
             - Direct View: A fixed direct view out the front of the entity. Moves and rotates with the entity.
-            - Orbital View - Local: An orbital view of the entity. Moves and rotates with the entity, but can be further rotated around the entity in an orbital perspective. See the below 'Movement' section for details on controlling it.
-            - Orbital View - World: An orbital view of the entity. Moves with the entity, but does not rotate with it. It be rotated around the entity in an orbital perspective. See the below 'Movement' section for details on controlling it.
+            - Orbital View - Local: An orbital view of the entity. Moves and rotates with the entity, but can be further rotated around the entity in an orbital perspective. See the below [Movement section](#movement) for details on controlling it.
+            - Orbital View - World: An orbital view of the entity. Moves with the entity, but does not rotate with it. It be rotated around the entity in an orbital perspective. See the below [Movement section](#movement) for details on controlling it.
 
 ![DISEntityViewer](Resources/ReadMeImages/DISEntityViewer.png)
 
