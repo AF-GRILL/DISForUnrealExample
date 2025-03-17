@@ -17,7 +17,7 @@ If the submodule has already been added to the project but needs to be updated t
 - _**NOTE:**_ The submodule is separate from the GRILL DIS for Unreal plugin that is on the Unreal Engine marketplace. This project should use the submodule. NOT the plugin on the marketplace.
 
 - _**NOTE:**_ Once the submodule is added (or if updating it to a more recent state) the project may need to be built from source. To do so:
-	- Install Visual Studio 2019 (if not already installed). Follow the steps at the following URL to set up Visual Studio for Unreal Engine: https://docs.unrealengine.com/4.26/en-US/ProductionPipelines/DevelopmentSetup/VisualStudioSetup/
+	- Install Visual Studio 2022 (if not already installed). Follow the steps at the following URL to set up Visual Studio for Unreal Engine: https://dev.epicgames.com/documentation/en-us/unreal-engine/setting-up-visual-studio-development-environment-for-cplusplus-projects-in-unreal-engine?application_version=5.4
 	- Once Visual Studio is set up, right click on the `GRILLDISExample.uproject` file and select "Generate Visual Studio project files".
 	- Double click on the resulting `GRILLDISExample.sln` file to open it.
 		- Right click on the `GRILLDISExample` project in Visual Studio's solution explorer and select "Set as Startup Project"
