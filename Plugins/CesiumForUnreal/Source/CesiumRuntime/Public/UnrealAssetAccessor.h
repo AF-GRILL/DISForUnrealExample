@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -30,5 +30,11 @@ public:
   virtual void tick() noexcept override;
 
 private:
+  CesiumAsync::Future<std::shared_ptr<CesiumAsync::IAssetRequest>> getFromFile(
+      const CesiumAsync::AsyncSystem& asyncSystem,
+      const std::string& url,
+      const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers);
+
   FString _userAgent;
+  TMap<FString, FString> _cesiumRequestHeaders;
 };

@@ -1,10 +1,12 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
 #include "CesiumGeospatial/Ellipsoid.h"
+#include "CesiumGeospatial/LocalHorizontalCoordinateSystem.h"
 #include "HAL/Platform.h"
-#include <glm/glm.hpp>
+#include <glm/fwd.hpp>
+#include <glm/vec3.hpp>
 
 /**
  * @brief A lightweight structure to encapsulate coordinate transforms.
@@ -19,17 +21,9 @@ class CESIUMRUNTIME_API GeoTransforms {
 
 public:
   /**
-   * @brief Creates a new instance
+   * @brief Creates a new instance.
    */
-  GeoTransforms()
-      : _ellipsoid(CesiumGeospatial::Ellipsoid::WGS84),
-        _center(glm::dvec3(0.0)),
-        _georeferencedToEcef(1.0),
-        _ecefToGeoreferenced(1.0),
-        _ueAbsToEcef(1.0),
-        _ecefToUeAbs(1.0) {
-    updateTransforms();
-  }
+  GeoTransforms();
 
   /**
    * @brief Creates a new instance.
@@ -39,18 +33,12 @@ public:
    *
    * @param ellipsoid The ellipsoid to use for the georeferenced coordinates
    * @param center The center position.
+   * @param scale The scale factor of the globe in the Unreal world.
    */
   GeoTransforms(
       const CesiumGeospatial::Ellipsoid& ellipsoid,
-      const glm::dvec3& center)
-      : _ellipsoid(ellipsoid),
-        _center(center),
-        _georeferencedToEcef(1.0),
-        _ecefToGeoreferenced(1.0),
-        _ueAbsToEcef(1.0),
-        _ecefToUeAbs(1.0) {
-    updateTransforms();
-  }
+      const glm::dvec3& center,
+      double scale);
 
   /**
    * @brief Set the center position of this instance
@@ -120,30 +108,30 @@ public:
       const glm::dvec3& Ue) const noexcept;
 
   /**
-   * Transforms a rotator from Unreal world to East-North-Up at the given
+   * Transforms a rotator from Unreal world to East-South-Up at the given
    * Unreal relative world location (relative to the floating origin).
    */
-  glm::dquat TransformRotatorUnrealToEastNorthUp(
+  glm::dquat TransformRotatorUnrealToEastSouthUp(
       const glm::dvec3& origin,
       const glm::dquat& UeRotator,
       const glm::dvec3& UeLocation) const noexcept;
 
   /**
-   * Transforms a rotator from East-North-Up to Unreal world at the given
+   * Transforms a rotator from East-South-Up to Unreal world at the given
    * Unreal world location (relative to the floating origin).
    */
-  glm::dquat TransformRotatorEastNorthUpToUnreal(
+  glm::dquat TransformRotatorEastSouthUpToUnreal(
       const glm::dvec3& origin,
       const glm::dquat& EnuRotator,
       const glm::dvec3& UeLocation) const noexcept;
 
   /**
-   * Computes the rotation matrix from the local East-North-Up to Unreal at the
+   * Computes the rotation matrix from the local East-South-Up to Unreal at the
    * specified Unreal world location (relative to the floating
    * origin). The returned transformation works in Unreal's left-handed
    * coordinate system.
    */
-  glm::dmat3 ComputeEastNorthUpToUnreal(
+  glm::dmat4 ComputeEastSouthUpToUnreal(
       const glm::dvec3& origin,
       const glm::dvec3& Ue) const noexcept;
 
@@ -158,36 +146,6 @@ public:
    */
 
   /**
-   * @brief Gets the transformation from the "Georeferenced" reference frame
-   * defined by this instance to the "Ellipsoid-centered" reference frame (i.e.
-   * ECEF).
-   *
-   * Gets a matrix that transforms coordinates from the "Georeference" reference
-   * frame defined by this instance to the "Ellipsoid-centered" reference frame,
-   * which is usually Earth-centered, Earth-fixed. See {@link
-   * reference-frames.md}.
-   */
-  const glm::dmat4&
-  GetGeoreferencedToEllipsoidCenteredTransform() const noexcept {
-    return this->_georeferencedToEcef;
-  }
-
-  /**
-   * @brief Gets the transformation from the "Ellipsoid-centered" reference
-   * frame (i.e. ECEF) to the georeferenced reference frame defined by this
-   * instance.
-   *
-   * Gets a matrix that transforms coordinates from the "Ellipsoid-centered"
-   * reference frame (which is usually Earth-centered, Earth-fixed) to the
-   * "Georeferenced" reference frame defined by this instance. See {@link
-   * reference-frames.md}.
-   */
-  const glm::dmat4&
-  GetEllipsoidCenteredToGeoreferencedTransform() const noexcept {
-    return this->_ecefToGeoreferenced;
-  }
-
-  /**
    * @brief Gets the transformation from the _absolute_ "Unreal World" reference
    * frame to the "Ellipsoid-centered" reference frame (i.e. ECEF).
    *
@@ -198,7 +156,7 @@ public:
    */
   const glm::dmat4&
   GetAbsoluteUnrealWorldToEllipsoidCenteredTransform() const noexcept {
-    return this->_ueAbsToEcef;
+    return this->_coordinateSystem.getLocalToEcefTransformation();
   }
 
   /**
@@ -212,7 +170,7 @@ public:
    */
   const glm::dmat4&
   GetEllipsoidCenteredToAbsoluteUnrealWorldTransform() const noexcept {
-    return this->_ecefToUeAbs;
+    return this->_coordinateSystem.getEcefToLocalTransformation();
   }
 
   /**
@@ -257,20 +215,26 @@ public:
       const glm::dvec3& oldPosition,
       const glm::dvec3& newPosition) const;
 
+  const FMatrix& GetEllipsoidCenteredToAbsoluteUnrealWorldMatrix() const {
+    return this->_ecefToUnreal;
+  }
+  const FMatrix& GetAbsoluteUnrealWorldToEllipsoidCenteredMatrix() const {
+    return this->_unrealToEcef;
+  }
+
 private:
   /**
-   * Update the derived state (i.e. the matrices) when either
-   * the center or the ellipsoid has changed.
+   * Update the derived state (i.e. the local horizontal coordinate system) when
+   * either the center or the ellipsoid has changed.
    */
   void updateTransforms() noexcept;
+
+  CesiumGeospatial::LocalHorizontalCoordinateSystem _coordinateSystem;
 
   // Modifiable state
   CesiumGeospatial::Ellipsoid _ellipsoid;
   glm::dvec3 _center;
-
-  // Derived state
-  glm::dmat4 _georeferencedToEcef;
-  glm::dmat4 _ecefToGeoreferenced;
-  glm::dmat4 _ueAbsToEcef;
-  glm::dmat4 _ecefToUeAbs;
+  double _scale;
+  FMatrix _ecefToUnreal;
+  FMatrix _unrealToEcef;
 };

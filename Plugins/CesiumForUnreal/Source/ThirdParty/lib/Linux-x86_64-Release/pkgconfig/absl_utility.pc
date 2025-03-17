@@ -1,0 +1,13 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: absl_utility
+Description: Abseil utility library
+URL: https://abseil.io/
+Version: 20240116
+
+Libs: "-L${libdir}"
+Requires: absl_base_internal = 20240116, absl_config = 20240116, absl_type_traits = 20240116
+Cflags: "-I${includedir}" -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-float-conversion -Wno-unknown-warning-option -DNOMINMAX

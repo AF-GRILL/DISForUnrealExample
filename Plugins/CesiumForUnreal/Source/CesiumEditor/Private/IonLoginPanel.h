@@ -1,8 +1,7 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
-#include "Dialogs/CustomDialog.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FArguments;
@@ -17,5 +16,6 @@ private:
   void LaunchBrowserAgain();
 
   FReply SignIn();
+  FReply CancelSignIn();
   FReply CopyAuthorizeUrlToClipboard();
 };

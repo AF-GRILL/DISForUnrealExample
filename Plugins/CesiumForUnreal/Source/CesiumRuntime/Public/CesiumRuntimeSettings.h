@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -14,29 +14,21 @@ class CESIUMRUNTIME_API UCesiumRuntimeSettings : public UDeveloperSettings {
   GENERATED_UCLASS_BODY()
 
 public:
-  /**
-   * The ID of the default access token to use to access Cesium ion assets at
-   * runtime. This property may be an empty string, in which case the ID is
-   * found by searching the logged-in Cesium ion account for the
-   * DefaultIonAccessToken.
-   */
   UPROPERTY(
       Config,
-      EditAnywhere,
-      Category = "Cesium ion",
-      meta = (DisplayName = "Default Cesium ion Access Token ID"))
-  FString DefaultIonAccessTokenId;
+      meta =
+          (DeprecatedProperty,
+           DeprecationMessage =
+               "Tokens are now configured on CesiumIonServer data assets."))
+  FString DefaultIonAccessTokenId_DEPRECATED;
 
-  /**
-   * The default token used to access Cesium ion assets at runtime. This token
-   * is embedded in packaged games for use at runtime.
-   */
   UPROPERTY(
       Config,
-      EditAnywhere,
-      Category = "Cesium ion",
-      meta = (DisplayName = "Default Cesium ion Access Token"))
-  FString DefaultIonAccessToken;
+      meta =
+          (DeprecatedProperty,
+           DeprecationMessage =
+               "Tokens are now configured on CesiumIonServer data assets."))
+  FString DefaultIonAccessToken_DEPRECATED;
 
   UPROPERTY(
       Config,
@@ -52,4 +44,26 @@ public:
    */
   UPROPERTY(Config, EditAnywhere, Category = "Experimental Feature Flags")
   bool EnableExperimentalOcclusionCullingFeature = false;
+
+  /**
+   * The number of requests to handle before each prune of old cached results
+   * from the database.
+   */
+  UPROPERTY(
+      Config,
+      EditAnywhere,
+      Category = "Cache",
+      meta = (ConfigRestartRequired = true))
+  int RequestsPerCachePrune = 10000;
+
+  /**
+   * The maximum number of items that should be kept in the Sqlite database
+   * after pruning.
+   */
+  UPROPERTY(
+      Config,
+      EditAnywhere,
+      Category = "Cache",
+      meta = (ConfigRestartRequired = true))
+  int MaxCacheItems = 4096;
 };

@@ -78,6 +78,15 @@ struct CESIUMUTILITY_API ExtensibleObject {
   }
 
   /**
+   * @brief Removes a statically-typed extension from this object.
+   *
+   * @tparam T The type of the extension to remove.
+   */
+  template <typename T> void removeExtension() {
+    extensions.erase(T::ExtensionName);
+  }
+
+  /**
    * @brief The extensions attached to this object.
    *
    * Use {@link getExtension} to get the extension with a particular static
@@ -95,5 +104,14 @@ struct CESIUMUTILITY_API ExtensibleObject {
    * best portability.
    */
   JsonValue::Object extras;
+
+  /**
+   * @brief Unknown properties that exist on this object but do not have any
+   * representation in the statically-typed classes.
+   *
+   * These properties may be invalid, or they may represent deprecated,
+   * experimental, or next-version properties.
+   */
+  JsonValue::Object unknownProperties;
 };
 } // namespace CesiumUtility

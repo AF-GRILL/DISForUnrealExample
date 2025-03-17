@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -8,20 +8,22 @@
 #include "CesiumGltf/Model.h"
 #include "CesiumGltf/Node.h"
 #include "LoadGltfResult.h"
-#if PHYSICS_INTERFACE_PHYSX
-#include "IPhysXCookingModule.h"
-#endif
 
 // TODO: internal documentation
 namespace CreateGltfOptions {
 struct CreateModelOptions {
-  const CesiumGltf::Model* pModel = nullptr;
-  const FMetadataDescription* pEncodedMetadataDescription = nullptr;
+  /**
+   * A pointer to the glTF model.
+   */
+  CesiumGltf::Model* pModel = nullptr;
+  const FCesiumFeaturesMetadataDescription* pFeaturesMetadataDescription =
+      nullptr;
+  PRAGMA_DISABLE_DEPRECATION_WARNINGS
+  const FMetadataDescription* pEncodedMetadataDescription_DEPRECATED = nullptr;
+  PRAGMA_ENABLE_DEPRECATION_WARNINGS
   bool alwaysIncludeTangents = false;
   bool createPhysicsMeshes = true;
-#if PHYSICS_INTERFACE_PHYSX
-  IPhysXCookingModule* pPhysXCookingModule = nullptr;
-#endif
+  bool ignoreKhrMaterialsUnlit = false;
 };
 
 struct CreateNodeOptions {
@@ -33,12 +35,12 @@ struct CreateNodeOptions {
 struct CreateMeshOptions {
   const CreateNodeOptions* pNodeOptions = nullptr;
   const LoadGltfResult::LoadNodeResult* pHalfConstructedNodeResult = nullptr;
-  const CesiumGltf::Mesh* pMesh = nullptr;
+  CesiumGltf::Mesh* pMesh = nullptr;
 };
 
 struct CreatePrimitiveOptions {
   const CreateMeshOptions* pMeshOptions = nullptr;
   const LoadGltfResult::LoadMeshResult* pHalfConstructedMeshResult = nullptr;
-  const CesiumGltf::MeshPrimitive* pPrimitive = nullptr;
+  CesiumGltf::MeshPrimitive* pPrimitive = nullptr;
 };
 } // namespace CreateGltfOptions

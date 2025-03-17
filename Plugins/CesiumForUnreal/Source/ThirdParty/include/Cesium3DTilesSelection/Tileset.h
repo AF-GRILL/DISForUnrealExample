@@ -11,6 +11,7 @@
 #include "ViewUpdateResult.h"
 
 #include <CesiumAsync/AsyncSystem.h>
+#include <CesiumUtility/IntrusivePointer.h>
 
 #include <rapidjson/fwd.h>
 
@@ -21,6 +22,7 @@
 
 namespace Cesium3DTilesSelection {
 class TilesetContentManager;
+class TilesetMetadata;
 
 /**
  * @brief A <a
@@ -75,15 +77,40 @@ public:
 
   /**
    * @brief Destroys this tileset.
-   * This may block the calling thread while waiting for pending asynchronous
-   * tile loads to terminate.
+   *
+   * Destroying the tileset will immediately (before the destructor returns)
+   * unload as much tile content as possible. However, tiles that are currently
+   * in the process of being loaded cannot be unloaded immediately. These tiles
+   * will be unloaded asynchronously some time after this destructor returns. To
+   * be notified of completion of the async portion of the tileset destruction,
+   * subscribe to {@link getAsyncDestructionCompleteEvent}.
    */
   ~Tileset() noexcept;
 
   /**
+   * @brief A future that resolves when this Tileset has been destroyed (i.e.
+   * its destructor has been called) and all async operations that it was
+   * executing have completed.
+   */
+  CesiumAsync::SharedFuture<void>& getAsyncDestructionCompleteEvent();
+
+  /**
+   * @brief A future that resolves when the details of the root tile of this
+   * tileset are available. The root tile's content (e.g., 3D model), however,
+   * will not necessarily be loaded yet.
+   */
+  CesiumAsync::SharedFuture<void>& getRootTileAvailableEvent();
+
+  /**
    * @brief Get tileset credits.
    */
-  const std::vector<Credit>& getTilesetCredits() const noexcept;
+  const std::vector<CesiumUtility::Credit>& getTilesetCredits() const noexcept;
+
+  /**
+   * @brief Sets whether or not the tileset's credits should be shown on screen.
+   * @param showCreditsOnScreen Whether the credits should be shown on screen.
+   */
+  void setShowCreditsOnScreen(bool showCreditsOnScreen) noexcept;
 
   /**
    * @brief Gets the {@link TilesetExternals} that summarize the external
@@ -119,6 +146,18 @@ public:
    * @brief Gets the {@link TilesetOptions} of this tileset.
    */
   TilesetOptions& getOptions() noexcept { return this->_options; }
+
+  /**
+   * @brief Gets the {@link CesiumGeospatial::Ellipsoid} used by this tileset.
+   */
+  const CesiumGeospatial::Ellipsoid& getEllipsoid() const {
+    return this->_options.ellipsoid;
+  }
+
+  /** @copydoc Tileset::getEllipsoid */
+  CesiumGeospatial::Ellipsoid& getEllipsoid() noexcept {
+    return this->_options.ellipsoid;
+  }
 
   /**
    * @brief Gets the root tile of this tileset.
@@ -165,6 +204,11 @@ public:
   updateView(const std::vector<ViewState>& frustums, float deltaTime = 0.0f);
 
   /**
+   * @brief Gets the total number of tiles that are currently loaded.
+   */
+  int32_t getNumberOfTilesLoaded() const;
+
+  /**
    * @brief Estimate the percentage of the tiles for the current view that have
    * been loaded.
    */
@@ -182,6 +226,49 @@ public:
    * are currently loaded.
    */
   int64_t getTotalDataBytes() const noexcept;
+
+  /**
+   * @brief Gets the {@link TilesetMetadata} associated with the main or
+   * external tileset.json that contains a given tile. If the metadata is not
+   * yet loaded, this method returns nullptr.
+   *
+   * If this tileset's root tile is not yet available, this method returns
+   * nullptr.
+   *
+   * If the tileset has a {@link TilesetMetadata::schemaUri}, it will not
+   * necessarily have been loaded yet.
+   *
+   * If the provided tile is not the root tile of a tileset.json, this method
+   * walks up the {@link Tile::getParent} chain until it finds the closest
+   * root and then returns the metadata associated with the corresponding
+   * tileset.json.
+   *
+   * Consider calling {@link loadMetadata} instead, which will return a future
+   * that only resolves after the root tile is loaded and the `schemaUri`, if
+   * any, has been resolved.
+   *
+   * @param pTile The tile. If this parameter is nullptr, the metadata for the
+   * main tileset.json is returned.
+   * @return The found metadata, or nullptr if the root tile is not yet loaded.
+   */
+  const TilesetMetadata* getMetadata(const Tile* pTile = nullptr) const;
+
+  /**
+   * @brief Asynchronously loads the metadata associated with the main
+   * tileset.json.
+   *
+   * Before the returned future resolves, the root tile of this tileset will be
+   * loaded and the {@link TilesetMetadata::schemaUri} will be loaded if one
+   * has been specified.
+   *
+   * If the tileset or `schemaUri` fail to load, the returned future will
+   * reject.
+   *
+   * @return A shared future that resolves to the loaded metadata. Once this
+   * future resolves, {@link getMetadata} can be used to synchronously obtain
+   * the same metadata instance.
+   */
+  CesiumAsync::Future<const TilesetMetadata*> loadMetadata();
 
 private:
   /**
@@ -257,20 +344,14 @@ private:
       const FrameState& frameState,
       Tile& tile,
       ViewUpdateResult& result);
-  TraversalDetails _refineToNothing(
-      const FrameState& frameState,
-      Tile& tile,
-      ViewUpdateResult& result,
-      bool areChildrenRenderable);
   bool _kickDescendantsAndRenderTile(
       const FrameState& frameState,
       Tile& tile,
       ViewUpdateResult& result,
       TraversalDetails& traversalDetails,
       size_t firstRenderedDescendantIndex,
-      size_t loadIndexLow,
-      size_t loadIndexMedium,
-      size_t loadIndexHigh,
+      size_t workerThreadLoadQueueIndex,
+      size_t mainThreadLoadQueueIndex,
       bool queuedForLoad,
       double tilePriority);
   TileOcclusionState
@@ -331,6 +412,7 @@ private:
    * @param result The current view update result.
    * @param tilePriority The load priority of this tile.
    * priority.
+   * @param queuedForLoad True if this tile has already been queued for loading.
    * @return true The additive-refined tile was queued for load and added to the
    * render list.
    * @return false The non-additive-refined tile was ignored.
@@ -338,33 +420,13 @@ private:
   bool _loadAndRenderAdditiveRefinedTile(
       Tile& tile,
       ViewUpdateResult& result,
-      double tilePriority);
+      double tilePriority,
+      bool queuedForLoad);
 
-  /**
-   * @brief Queues load of tiles that are _required_ to be loaded before the
-   * given tile can be refined in "Forbid Holes" mode.
-   *
-   * The queued tiles may include descedents, too, if any children are set to
-   * Unconditionally Refine ({@link Tile::getUnconditionallyRefine}).
-   *
-   * This method should only be called if {@link TilesetOptions::forbidHoles} is enabled.
-   *
-   * @param frameState The state of the current frame.
-   * @param tile The tile that is potentially being refined.
-   * @param implicitInfo The implicit traversal info.
-   * @param tilePriority The load priority of this tile.
-   * @return true Some of the required descendents are not yet loaded, so this
-   * tile _cannot_ yet be refined.
-   * @return false All of the required descendents (if there are any) are
-   * loaded, so this tile _can_ be refined.
-   */
-  bool _queueLoadOfChildrenRequiredForForbidHoles(
-      const FrameState& frameState,
-      Tile& tile,
-      double tilePriority);
+  void _processWorkerThreadLoadQueue();
+  void _processMainThreadLoadQueue();
 
-  void _processLoadQueue();
-  void _unloadCachedTiles() noexcept;
+  void _unloadCachedTiles(double timeBudget) noexcept;
   void _markTileVisited(Tile& tile) noexcept;
 
   void _updateLodTransitions(
@@ -380,24 +442,60 @@ private:
   int32_t _previousFrameNumber;
   ViewUpdateResult _updateResult;
 
-  struct LoadRecord {
+  enum class TileLoadPriorityGroup {
+    /**
+     * @brief Low priority tiles that aren't needed right now, but
+     * are being preloaded for the future.
+     */
+    Preload = 0,
+
+    /**
+     * @brief Medium priority tiles that are needed to render the current view
+     * the appropriate level-of-detail.
+     */
+    Normal = 1,
+
+    /**
+     * @brief High priority tiles that are causing extra detail to be rendered
+     * in the scene, potentially creating a performance problem and aliasing
+     * artifacts.
+     */
+    Urgent = 2
+  };
+
+  struct TileLoadTask {
+    /**
+     * @brief The tile to be loaded.
+     */
     Tile* pTile;
 
     /**
-     * @brief The relative priority of loading this tile.
+     * @brief The priority group (low / medium / high) in which to load this
+     * tile.
      *
-     * Lower priority values load sooner.
+     * All tiles in a higher priority group are given a chance to load before
+     * any tiles in a lower priority group.
+     */
+    TileLoadPriorityGroup group;
+
+    /**
+     * @brief The priority of this tile within its priority group.
+     *
+     * Tiles with a _lower_ value for this property load sooner!
      */
     double priority;
 
-    bool operator<(const LoadRecord& rhs) const noexcept {
-      return this->priority < rhs.priority;
+    bool operator<(const TileLoadTask& rhs) const noexcept {
+      if (this->group == rhs.group)
+        return this->priority < rhs.priority;
+      else
+        return this->group > rhs.group;
     }
   };
 
-  std::vector<LoadRecord> _loadQueueHigh;
-  std::vector<LoadRecord> _loadQueueMedium;
-  std::vector<LoadRecord> _loadQueueLow;
+  std::vector<TileLoadTask> _mainThreadLoadQueue;
+  std::vector<TileLoadTask> _workerThreadLoadQueue;
+
   Tile::LoadedLinkedList _loadedTiles;
 
   // Holds computed distances, to avoid allocating them on the heap during tile
@@ -408,15 +506,18 @@ private:
   // scratch variable so that it can allocate only when growing bigger.
   std::vector<const TileOcclusionRendererProxy*> _childOcclusionProxies;
 
-  std::unique_ptr<TilesetContentManager> _pTilesetContentManager;
+  CesiumUtility::IntrusivePointer<TilesetContentManager>
+      _pTilesetContentManager;
 
   void addTileToLoadQueue(
-      std::vector<LoadRecord>& loadQueue,
       Tile& tile,
-      double tilePriority);
-  void processQueue(
-      std::vector<Tileset::LoadRecord>& queue,
-      int32_t maximumLoadsInProgress);
+      TileLoadPriorityGroup priorityGroup,
+      double priority);
+
+  static TraversalDetails createTraversalDetailsForSingleTile(
+      const FrameState& frameState,
+      const Tile& tile,
+      const TileSelectionState& lastFrameSelectionState);
 
   Tileset(const Tileset& rhs) = delete;
   Tileset& operator=(const Tileset& rhs) = delete;

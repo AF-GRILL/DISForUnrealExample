@@ -9,8 +9,8 @@
 #include <CesiumGltf/ImageCesium.h>
 #include <CesiumGltf/Ktx2TranscodeTargets.h>
 #include <CesiumGltf/Model.h>
-#include <CesiumJsonReader/ExtensionReaderContext.h>
 #include <CesiumJsonReader/IExtensionJsonHandler.h>
+#include <CesiumJsonReader/JsonReaderOptions.h>
 
 #include <gsl/span>
 
@@ -96,10 +96,35 @@ struct CESIUMGLTFREADER_API GltfReaderOptions {
   bool decodeEmbeddedImages = true;
 
   /**
+   * @brief Whether external images should be resolved.
+   */
+  bool resolveExternalImages = true;
+
+  /**
    * @brief Whether geometry compressed using the `KHR_draco_mesh_compression`
    * extension should be automatically decoded as part of the load process.
    */
   bool decodeDraco = true;
+
+  /**
+   * @brief Whether the mesh data are decompressed as part of the load process,
+   * or left in the compressed format according to the EXT_meshopt_compression
+   * extension
+   */
+  bool decodeMeshOptData = true;
+
+  /**
+   * @brief Whether the quantized mesh data are dequantized and converted to
+   * floating-point values when loading, according to the KHR_mesh_quantization
+   * extension.
+   */
+  bool dequantizeMeshData = true;
+
+  /**
+   * @brief  Whether the texture coordinates of a texture are transformed or
+   * not, according to the KHR_texture_transform extension
+   */
+  bool applyTextureTransform = true;
 
   /**
    * @brief For each possible input transmission format, this struct names
@@ -119,16 +144,14 @@ public:
   GltfReader();
 
   /**
-   * @brief Gets the context used to control how extensions are loaded from glTF
-   * files.
+   * @brief Gets the options controlling how the JSON is read.
    */
-  CesiumJsonReader::ExtensionReaderContext& getExtensions();
+  CesiumJsonReader::JsonReaderOptions& getOptions();
 
   /**
-   * @brief Gets the context used to control how extensions are loaded from glTF
-   * files.
+   * @brief Gets the options controlling how the JSON is read.
    */
-  const CesiumJsonReader::ExtensionReaderContext& getExtensions() const;
+  const CesiumJsonReader::JsonReaderOptions& getExtensions() const;
 
   /**
    * @brief Reads a glTF or binary glTF (GLB) from a buffer.
@@ -140,6 +163,34 @@ public:
   GltfReaderResult readGltf(
       const gsl::span<const std::byte>& data,
       const GltfReaderOptions& options = GltfReaderOptions()) const;
+
+  /**
+   * @brief Reads a glTF or binary glTF file from a URL and resolves external
+   * buffers and images.
+   *
+   * @param asyncSystem The async system to use for resolving external data.
+   * @param url The url for reading the file.
+   * @param headers http headers needed to make the request.
+   * @param pAssetAccessor The asset accessor to use to make the necessary
+   * requests.
+   * @param options Options for how to read the glTF.
+   */
+  CesiumAsync::Future<GltfReaderResult> loadGltf(
+      const CesiumAsync::AsyncSystem& asyncSystem,
+      const std::string& url,
+      const std::vector<CesiumAsync::IAssetAccessor::THeader>& headers,
+      const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor,
+      const GltfReaderOptions& options = GltfReaderOptions()) const;
+
+  /**
+   * @brief Performs post-load processing on a glTF. The specific operations
+   * performed are controlled by the provided `options`.
+   *
+   * @param readGltf The result of reading the glTF.
+   * @param options The options to use in post-processing.
+   */
+  void
+  postprocessGltf(GltfReaderResult& readGltf, const GltfReaderOptions& options);
 
   /**
    * @brief Accepts the result of {@link readGltf} and resolves any remaining
@@ -177,8 +228,20 @@ public:
       const gsl::span<const std::byte>& data,
       const CesiumGltf::Ktx2TranscodeTargets& ktx2TranscodeTargets);
 
+  /**
+   * @brief Generate mipmaps for this image.
+   *
+   * Does nothing if mipmaps already exist or the compressedPixelFormat is not
+   * GpuCompressedPixelFormat::NONE.
+   *
+   * @param image The image to generate mipmaps for.   *
+   * @return A string describing the error, if unable to generate mipmaps.
+   */
+  static std::optional<std::string>
+  generateMipMaps(CesiumGltf::ImageCesium& image);
+
 private:
-  CesiumJsonReader::ExtensionReaderContext _context;
+  CesiumJsonReader::JsonReaderOptions _context;
 };
 
 } // namespace CesiumGltfReader

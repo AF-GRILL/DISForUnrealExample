@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -8,10 +8,13 @@
 #include "Cesium3DTilesetLoadFailureDetails.h"
 #include "CesiumCreditSystem.h"
 #include "CesiumEncodedMetadataComponent.h"
-#include "CesiumExclusionZone.h"
+#include "CesiumFeaturesMetadataComponent.h"
 #include "CesiumGeoreference.h"
+#include "CesiumIonServer.h"
+#include "CesiumPointCloudShading.h"
 #include "CoreMinimal.h"
 #include "CustomDepthParameters.h"
+#include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/IHttpRequest.h"
 #include "PrimitiveSceneProxy.h"
@@ -25,6 +28,7 @@
 
 class UMaterialInterface;
 class ACesiumCartographicSelection;
+class ACesiumCameraManager;
 class UCesiumBoundingVolumePoolComponent;
 class CesiumViewExtension;
 struct FCesiumCamera;
@@ -78,6 +82,26 @@ public:
   virtual ~ACesium3DTileset();
 
 private:
+  UPROPERTY(VisibleAnywhere, Category = "Cesium") USceneComponent* Root;
+
+  UPROPERTY(
+      Meta =
+          (AllowPrivateAccess,
+           DeprecatedProperty,
+           DeprecationMessage =
+               "Use the Mobility property on the RootComponent instead."))
+  TEnumAsByte<EComponentMobility::Type> Mobility_DEPRECATED =
+      EComponentMobility::Static;
+
+public:
+  UFUNCTION(BlueprintCallable, meta = (DeprecatedFunction))
+  EComponentMobility::Type GetMobility() const {
+    return this->RootComponent->Mobility;
+  }
+  UFUNCTION(BlueprintCallable, meta = (DeprecatedFunction))
+  void SetMobility(EComponentMobility::Type NewMobility);
+
+private:
   /**
    * The designated georeference actor controlling how the actor's
    * coordinate system relates to the coordinate system in this Unreal Engine
@@ -94,7 +118,7 @@ private:
       BlueprintSetter = SetGeoreference,
       Category = "Cesium",
       Meta = (AllowPrivateAccess))
-  ACesiumGeoreference* Georeference;
+  TSoftObjectPtr<ACesiumGeoreference> Georeference;
 
   /**
    * The resolved georeference used by this Tileset. This is not serialized
@@ -106,6 +130,7 @@ private:
    */
   UPROPERTY(
       Transient,
+      VisibleAnywhere,
       BlueprintReadOnly,
       Category = "Cesium",
       Meta = (AllowPrivateAccess))
@@ -114,11 +139,11 @@ private:
 public:
   /** @copydoc ACesium3DTileset::Georeference */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  ACesiumGeoreference* GetGeoreference() const;
+  TSoftObjectPtr<ACesiumGeoreference> GetGeoreference() const;
 
   /** @copydoc ACesium3DTileset::Georeference */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  void SetGeoreference(ACesiumGeoreference* NewGeoreference);
+  void SetGeoreference(TSoftObjectPtr<ACesiumGeoreference> NewGeoreference);
 
   /**
    * Resolves the Cesium Georeference to use with this Actor. Returns
@@ -153,7 +178,7 @@ private:
       BlueprintSetter = SetCreditSystem,
       Category = "Cesium",
       Meta = (AllowPrivateAccess))
-  ACesiumCreditSystem* CreditSystem;
+  TSoftObjectPtr<ACesiumCreditSystem> CreditSystem;
 
   /**
    * The resolved Credit System used by this Tileset. This is not serialized
@@ -169,6 +194,38 @@ private:
       Category = "Cesium",
       Meta = (AllowPrivateAccess))
   ACesiumCreditSystem* ResolvedCreditSystem = nullptr;
+
+  /**
+   * The actor providing custom cameras for use with this Tileset.
+   *
+   * If this is null, the Tileset will find and use the first
+   * CesiumCameraManager Actor in the level, or create one if necessary. To get
+   * the active/effective Camera Manager from Blueprints or C++, use
+   * ResolvedCameraManager instead.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintReadWrite,
+      BlueprintGetter = GetCameraManager,
+      BlueprintSetter = SetCameraManager,
+      Category = "Cesium",
+      Meta = (AllowPrivateAccess))
+  TSoftObjectPtr<ACesiumCameraManager> CameraManager;
+
+  /**
+   * The resolved Camera Manager used by this Tileset. This is not serialized
+   * because it may point to a Camera Manager in the PersistentLevel while this
+   * tileset is in a sublevel. If the CameraManager property is specified,
+   * however then this property will have the same value.
+   *
+   * This property will be null before ResolveCameraManager is called.
+   */
+  UPROPERTY(
+      Transient,
+      BlueprintReadOnly,
+      Category = "Cesium",
+      Meta = (AllowPrivateAccess))
+  ACesiumCameraManager* ResolvedCameraManager = nullptr;
 
   /**
    * The bounding volume pool component that manages occlusion bounding volume
@@ -191,11 +248,11 @@ private:
 public:
   /** @copydoc ACesium3DTileset::CreditSystem */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  ACesiumCreditSystem* GetCreditSystem() const;
+  TSoftObjectPtr<ACesiumCreditSystem> GetCreditSystem() const;
 
   /** @copydoc ACesium3DTileset::CreditSystem */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
-  void SetCreditSystem(ACesiumCreditSystem* NewCreditSystem);
+  void SetCreditSystem(TSoftObjectPtr<ACesiumCreditSystem> NewCreditSystem);
 
   /**
    * Resolves the Cesium Credit System to use with this Actor. Returns
@@ -220,6 +277,32 @@ public:
   UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium")
   bool ShowCreditsOnScreen = false;
 
+  /** @copydoc ACesium3DTileset::CameraManager */
+  UFUNCTION(BlueprintGetter, Category = "Cesium")
+  TSoftObjectPtr<ACesiumCameraManager> GetCameraManager() const;
+
+  /** @copydoc ACesium3DTileset::CameraManager */
+  UFUNCTION(BlueprintSetter, Category = "Cesium")
+  void SetCameraManager(TSoftObjectPtr<ACesiumCameraManager> NewCameraManager);
+
+  /**
+   * Resolves the Cesium Camera Manager to use with this Actor. Returns
+   * the value of the CameraManager property if it is set. Otherwise, finds a
+   * Camera Manager in the World and returns it, creating it if necessary. The
+   * resolved Camera Manager is cached so subsequent calls to this function will
+   * return the same instance.
+   */
+  UFUNCTION(BlueprintCallable, Category = "Cesium")
+  ACesiumCameraManager* ResolveCameraManager();
+
+  /**
+   * Invalidates the cached resolved Camera Manager, setting it to null. The
+   * next time ResolveCameraManager is called, the Camera Manager will be
+   * re-resolved.
+   */
+  UFUNCTION(BlueprintCallable, Category = "Cesium")
+  void InvalidateResolvedCameraManager();
+
   /**
    * The maximum number of pixels of error when rendering this tileset.
    *
@@ -237,7 +320,8 @@ public:
    */
   UPROPERTY(
       EditAnywhere,
-      BlueprintReadWrite,
+      BlueprintGetter = GetMaximumScreenSpaceError,
+      BlueprintSetter = SetMaximumScreenSpaceError,
       Category = "Cesium|Level of Detail",
       meta = (ClampMin = 0.0))
   double MaximumScreenSpaceError = 16.0;
@@ -390,33 +474,6 @@ public:
   UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium|Tile Culling")
   bool EnforceCulledScreenSpaceError = false;
 
-  PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
-  /**
-   * A list of rectangles that are excluded from this tileset. Any tiles that
-   * overlap any of these rectangles are not shown. This is a crude method to
-   * avoid overlapping geometry coming from different tilesets. For example, to
-   * exclude Cesium OSM Buildings where there are photogrammetry assets.
-   *
-   * Note that in the current version, excluded tiles are still loaded, they're
-   * just not displayed. Also, because the tiles shown when zoomed out cover a
-   * large area, using an exclusion zone often means the tileset won't be shown
-   * at all when zoomed out.
-   *
-   * This property is currently only supported for 3D Tiles that use "region"
-   * for their bounding volumes. For other tilesets it is silently ignored.
-   *
-   * This is an experimental feature and may change in future versions.
-   */
-  UPROPERTY(
-      meta =
-          (DeprecatedProperty,
-           DeprecationMessage =
-               "Exclusion Zones have been deprecated. Please use Cartographic Polygon actor instead."))
-  TArray<FCesiumExclusionZone> ExclusionZones_DEPRECATED;
-
-  PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
   /**
    * The screen-space error to be enforced for tiles that are outside the view
    * frustum or hidden in fog.
@@ -564,7 +621,11 @@ public:
    * When this is set to true, Frustrum Culling and Fog Culling are always
    * disabled.
    */
-  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cesium|Rendering")
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetUseLodTransitions,
+      BlueprintSetter = SetUseLodTransitions,
+      Category = "Cesium|Rendering")
   bool UseLodTransitions = false;
 
   /**
@@ -634,18 +695,23 @@ private:
       meta = (EditCondition = "TilesetSource==ETilesetSource::FromCesiumIon"))
   FString IonAccessToken;
 
+  UPROPERTY(
+      meta =
+          (DeprecatedProperty,
+           DeprecationMessage = "Use CesiumIonServer instead."))
+  FString IonAssetEndpointUrl_DEPRECATED;
+
   /**
-   * The URL of the ion asset endpoint. Defaults to Cesium ion but a custom
-   * endpoint can be specified.
+   * The Cesium ion Server from which this tileset is loaded.
    */
   UPROPERTY(
       EditAnywhere,
-      BlueprintGetter = GetIonAssetEndpointUrl,
-      BlueprintSetter = SetIonAssetEndpointUrl,
+      BlueprintGetter = GetCesiumIonServer,
+      BlueprintSetter = SetCesiumIonServer,
       Category = "Cesium",
       AdvancedDisplay,
       meta = (EditCondition = "TilesetSource==ETilesetSource::FromCesiumIon"))
-  FString IonAssetEndpointUrl;
+  UCesiumIonServer* CesiumIonServer;
 
   /**
    * Check if the Cesium ion token used to access this tileset is working
@@ -660,6 +726,8 @@ private:
    * Disabling this option will improve the performance of tile loading, but it
    * will no longer be possible to collide with the tileset since the physics
    * meshes will not be created.
+   *
+   * Physics meshes cannot be generated for primitives containing points.
    */
   UPROPERTY(
       EditAnywhere,
@@ -667,6 +735,21 @@ private:
       BlueprintSetter = SetCreatePhysicsMeshes,
       Category = "Cesium|Physics")
   bool CreatePhysicsMeshes = true;
+
+  /**
+   * Whether to generate navigation collisions for this tileset.
+   *
+   * Enabling this option creates collisions for navigation when a 3D Tiles
+   * tileset is loaded. It is recommended to set "Runtime Generation" to
+   * "Static" in the navigation mesh settings in the project settings, as
+   * collision calculations become very slow.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetCreateNavCollision,
+      BlueprintSetter = SetCreateNavCollision,
+      Category = "Cesium|Navigation")
+  bool CreateNavCollision = false;
 
   /**
    * Whether to always generate a correct tangent space basis for tiles that
@@ -717,8 +800,26 @@ private:
       BlueprintGetter = GetEnableWaterMask,
       BlueprintSetter = SetEnableWaterMask,
       Category = "Cesium|Rendering",
-      meta = (EditCondition = "PlatformName != TEXT(\"Mac\")"))
+      meta = (EditCondition = "!bIsMac"))
   bool EnableWaterMask = false;
+
+  /**
+   * Whether to ignore the KHR_materials_unlit extension on the glTF tiles in
+   * this tileset, if it exists, and instead render with standard lighting and
+   * shadows. This property will have no effect if the tileset does not have any
+   * tiles that use this extension.
+   *
+   * The KHR_materials_unlit extension is often applied to photogrammetry
+   * tilesets because lighting and shadows are already baked into their
+   * textures.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetIgnoreKhrMaterialsUnlit,
+      BlueprintSetter = SetIgnoreKhrMaterialsUnlit,
+      Category = "Cesium|Rendering",
+      meta = (DisplayName = "Ignore KHR_materials_unlit"))
+  bool IgnoreKhrMaterialsUnlit = false;
 
   /**
    * A custom Material to use to render opaque elements in this tileset, in
@@ -776,13 +877,37 @@ private:
       meta = (ShowOnlyInnerProperties))
   FCustomDepthParameters CustomDepthParameters;
 
+  /**
+   * If this tileset contains points, their appearance can be configured with
+   * these point cloud shading parameters.
+   *
+   * These settings are not supported on mobile platforms.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetPointCloudShading,
+      BlueprintSetter = SetPointCloudShading,
+      Category = "Cesium|Rendering")
+  FCesiumPointCloudShading PointCloudShading;
+
 protected:
   UPROPERTY()
   FString PlatformName;
 
+#if WITH_EDITORONLY_DATA
+  UPROPERTY()
+  bool bIsMac;
+#endif
+
 public:
   UFUNCTION(BlueprintGetter, Category = "Cesium")
   float GetLoadProgress() const { return LoadProgress; }
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium")
+  bool GetUseLodTransitions() const { return UseLodTransitions; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium")
+  void SetUseLodTransitions(bool InUseLodTransitions);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium")
   ETilesetSource GetTilesetSource() const { return TilesetSource; }
@@ -809,10 +934,16 @@ public:
   void SetIonAccessToken(const FString& InAccessToken);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium")
-  FString GetIonAssetEndpointUrl() const { return IonAssetEndpointUrl; }
+  UCesiumIonServer* GetCesiumIonServer() const { return CesiumIonServer; }
 
   UFUNCTION(BlueprintSetter, Category = "Cesium")
-  void SetIonAssetEndpointUrl(const FString& InIonAssetEndpointUrl);
+  void SetCesiumIonServer(UCesiumIonServer* Server);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium")
+  double GetMaximumScreenSpaceError() { return MaximumScreenSpaceError; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium")
+  void SetMaximumScreenSpaceError(double InMaximumScreenSpaceError);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium|Tile Culling|Experimental")
   bool GetEnableOcclusionCulling() const;
@@ -840,6 +971,12 @@ public:
   UFUNCTION(BlueprintSetter, Category = "Cesium|Physics")
   void SetCreatePhysicsMeshes(bool bCreatePhysicsMeshes);
 
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Navigation")
+  bool GetCreateNavCollision() const { return CreateNavCollision; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Navigation")
+  void SetCreateNavCollision(bool bCreateNavCollision);
+
   UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
   bool GetAlwaysIncludeTangents() const { return AlwaysIncludeTangents; }
 
@@ -857,6 +994,11 @@ public:
 
   UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
   void SetEnableWaterMask(bool bEnableMask);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
+  bool GetIgnoreKhrMaterialsUnlit() const { return IgnoreKhrMaterialsUnlit; }
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
+  void SetIgnoreKhrMaterialsUnlit(bool bIgnoreKhrMaterialsUnlit);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
   UMaterialInterface* GetMaterial() const { return Material; }
@@ -885,6 +1027,14 @@ public:
 
   UFUNCTION(BlueprintSetter, Category = "Rendering")
   void SetCustomDepthParameters(FCustomDepthParameters InCustomDepthParameters);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
+  FCesiumPointCloudShading GetPointCloudShading() const {
+    return PointCloudShading;
+  }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
+  void SetPointCloudShading(FCesiumPointCloudShading InPointCloudShading);
 
   UFUNCTION(BlueprintCallable, Category = "Cesium|Rendering")
   void PlayMovieSequencer();
@@ -915,6 +1065,7 @@ public:
   virtual bool ShouldTickIfViewportsOnly() const override;
   virtual void Tick(float DeltaTime) override;
   virtual void BeginDestroy() override;
+  virtual bool IsReadyForFinishDestroy() override;
   virtual void Destroyed() override;
   virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
   virtual void PostLoad() override;
@@ -926,6 +1077,8 @@ public:
 #if WITH_EDITOR
   virtual void
   PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+  virtual void PostEditChangeChainProperty(
+      FPropertyChangedChainEvent& PropertyChangedChainEvent) override;
   virtual void PostEditUndo() override;
   virtual void PostEditImport() override;
 #endif
@@ -957,7 +1110,8 @@ private:
 
   static Cesium3DTilesSelection::ViewState CreateViewStateFromViewParameters(
       const FCesiumCamera& camera,
-      const glm::dmat4& unrealWorldToTileset);
+      const glm::dmat4& unrealWorldToTileset,
+      UCesiumEllipsoid* ellipsoid);
 
   std::vector<FCesiumCamera> GetCameras() const;
   std::vector<FCesiumCamera> GetPlayerCameras() const;
@@ -974,6 +1128,14 @@ public:
   void UpdateTransformFromCesium();
 
 private:
+  /**
+   * The event handler for ACesiumGeoreference::OnEllipsoidChanged.
+   */
+  UFUNCTION(CallInEditor)
+  void HandleOnGeoreferenceEllipsoidChanged(
+      UCesiumEllipsoid* OldEllipsoid,
+      UCesiumEllipsoid* NewEllpisoid);
+
   /**
    * Writes the values of all properties of this actor into the
    * TilesetOptions, to take them into account during the next
@@ -1029,14 +1191,17 @@ private:
 private:
   TUniquePtr<Cesium3DTilesSelection::Tileset> _pTileset;
 
-  FMetadataDescription _encodedMetadataDescription;
+  std::optional<FCesiumFeaturesMetadataDescription>
+      _featuresMetadataDescription;
+
+  PRAGMA_DISABLE_DEPRECATION_WARNINGS
+  std::optional<FMetadataDescription> _metadataDescription_DEPRECATED;
+  PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
   // For debug output
   uint32_t _lastTilesRendered;
-  uint32_t _lastTilesLoadingLowPriority;
-  uint32_t _lastTilesLoadingMediumPriority;
-  uint32_t _lastTilesLoadingHighPriority;
-  bool _activeLoading;
+  uint32_t _lastWorkerThreadTileLoadQueueLength;
+  uint32_t _lastMainThreadTileLoadQueueLength;
 
   uint32_t _lastTilesVisited;
   uint32_t _lastCulledTilesVisited;
@@ -1069,5 +1234,8 @@ private:
   // tilesToHideThisFrame may be hidden immediately.
   std::vector<Cesium3DTilesSelection::Tile*> _tilesToHideNextFrame;
 
+  int32 _tilesetsBeingDestroyed;
+
   friend class UnrealResourcePreparer;
+  friend class UCesiumGltfPointsComponent;
 };

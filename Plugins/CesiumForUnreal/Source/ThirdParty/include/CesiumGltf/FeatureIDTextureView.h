@@ -1,29 +1,30 @@
 #pragma once
 
-#include "CesiumGltf/FeatureIDTexture.h"
+#include "CesiumGltf/FeatureIdTexture.h"
+#include "CesiumGltf/Image.h"
+#include "CesiumGltf/ImageCesium.h"
+#include "CesiumGltf/KhrTextureTransform.h"
 #include "CesiumGltf/Texture.h"
-#include "CesiumGltf/TextureAccessor.h"
-#include "Image.h"
-#include "ImageCesium.h"
-#include "Model.h"
+#include "CesiumGltf/TextureView.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <string>
+#include <optional>
 
 namespace CesiumGltf {
 
+struct Model;
+
 /**
- * @brief The status of a feature id texture view.
+ * @brief The status of a feature ID texture view.
  *
- * The {@link FeatureIDTextureView} constructor always completes successfully,
+ * The {@link FeatureIdTextureView} constructor always completes successfully,
  * but it may not always reflect the actual content of the
- * {@link FeatureIDTexture}. This enumeration provides the reason.
+ * {@link FeatureIdTexture}. This enumeration provides the reason.
  */
-enum class FeatureIDTextureViewStatus {
+enum class FeatureIdTextureViewStatus {
   /**
    * @brief This view is valid and ready to use.
    */
@@ -32,59 +33,89 @@ enum class FeatureIDTextureViewStatus {
   /**
    * @brief This view has not yet been initialized.
    */
-  InvalidUninitialized,
+  ErrorUninitialized,
 
   /**
-   * @brief This feature id texture has a texture index that doesn't exist in
+   * @brief This feature ID texture has a texture index that doesn't exist in
    * the glTF.
    */
-  InvalidTextureIndex,
+  ErrorInvalidTexture,
 
   /**
-   * @brief This feature id texture has an image index that doesn't exist in
+   * @brief This feature ID texture has an image index that doesn't exist in
    * the glTF.
    */
-  InvalidImageIndex,
+  ErrorInvalidImage,
 
   /**
-   * @brief This feature id texture has an unknown image channel.
+   * @brief This feature ID texture has a sampler index that doesn't exist in
+   * the glTF.
    */
-  InvalidChannel,
+  ErrorInvalidSampler,
 
   /**
-   * @brief This feature id texture has an empty image.
+   * @brief This feature ID texture has an empty image.
    */
-  InvalidEmptyImage
+  ErrorEmptyImage,
+
+  /**
+   * @brief The image for this feature ID texture has channels that take up more
+   * than a byte. Only single-byte channels are supported.
+   */
+  ErrorInvalidImageBytesPerChannel,
+
+  /**
+   * @brief The channels of this feature ID texture property are invalid.
+   * Channels must be in the range 0-3, with a minimum of one channel. Although
+   * more than four channels can be defined for specialized texture
+   * formats, this view only supports a maximum of four channels.
+   */
+  ErrorInvalidChannels
 };
 
 /**
- * @brief A view on the image data of {@link FeatureIDTexture}.
+ * @brief A view on the image data of {@link FeatureIdTexture}.
  *
  * It provides the ability to sample the feature IDs from the
- * {@link FeatureIDTexture} using texture coordinates.
+ * {@link FeatureIdTexture} using texture coordinates.
  */
-class FeatureIDTextureView {
+class FeatureIdTextureView : public TextureView {
 public:
   /**
    * @brief Constructs an uninitialized and invalid view.
    */
-  FeatureIDTextureView() noexcept;
+  FeatureIdTextureView() noexcept;
 
   /**
-   * @brief Construct a view of the data specified by a
-   * {@link FeatureIDTexture}.
+   * @brief Construct a view of the data specified by a {@link FeatureIdTexture}.
    *
-   * @param model The glTF in which to look for the feature id texture's data.
-   * @param featureIDTexture The feature id texture to create a view for.
+   * A feature ID texture may contain the `KHR_texture_transform` extension,
+   * which transforms the texture coordinates used to sample the texture. The
+   * extension may also override the TEXCOORD set index that was originally
+   * specified by the feature ID texture.
+   *
+   * If a view is constructed with applyKhrTextureTransformExtension set to
+   * true, the view will automatically apply the texture transform to any UV
+   * coordinates used to sample the texture. If the extension defines its own
+   * TEXCOORD set index, it will override the original value.
+   *
+   * Otherwise, if the flag is set to false, UVs will not be transformed and
+   * the original TEXCOORD set index will be preserved. The extension's values
+   * may still be retrieved using getTextureTransform, if desired.
+   *
+   * @param model The glTF in which to look for the feature ID texture's data.
+   * @param featureIdTexture The feature ID texture to create a view for.
+   * @param applyKhrTextureTransformExtension Whether to automatically apply the
+   * `KHR_texture_transform` extension to the feature ID texture, if it exists.
    */
-  FeatureIDTextureView(
+  FeatureIdTextureView(
       const Model& model,
-      const FeatureIDTexture& featureIDTexture) noexcept;
+      const FeatureIdTexture& featureIdTexture,
+      const TextureViewOptions& options = TextureViewOptions()) noexcept;
 
   /**
-   * @brief Get the Feature ID for the given texture coordinates.
-   *
-   * Will return -1 when the status is not Valid.
+   * @brief Get the feature ID from the texture at the given texture
+   * coordinates. If the texture is somehow invalid, this returns -1.
    *
    * @param u The u-component of the texture coordinates. Must be within
    * [0.0, 1.0].
@@ -97,45 +128,18 @@ public:
   /**
    * @brief Get the status of this view.
    *
-   * If invalid, it will not be safe to sample feature ids from this view.
+   * If invalid, it will not be safe to sample feature IDs from this view.
    */
-  FeatureIDTextureViewStatus status() const { return _status; }
+  FeatureIdTextureViewStatus status() const noexcept { return this->_status; }
 
   /**
-   * @brief Get the actual feature ID texture.
-   *
-   * This will be nullptr if the feature id texture view runs into problems
-   * during construction.
+   * @brief Get the channels of this feature ID texture. The channels represent
+   * the bytes of the actual feature ID, in little-endian order.
    */
-  const ImageCesium* getImage() const { return _pImage; }
-
-  /**
-   * @brief Get the channel index that this feature ID texture uses.
-   */
-  int32_t getChannel() const { return _channel; }
-
-  /**
-   * @brief Get the name of the feature table associated with this feature ID
-   * texture.
-   */
-  const std::string& getFeatureTableName() const {
-    return this->_featureTableName;
-  }
-
-  /**
-   * @brief Get the texture coordinate attribute index for this feature id
-   * texture.
-   */
-  int64_t getTextureCoordinateAttributeId() const {
-    return this->_textureCoordinateAttributeId;
-  }
+  std::vector<int64_t> getChannels() const noexcept { return this->_channels; }
 
 private:
-  const ImageCesium* _pImage;
-  int32_t _channel;
-  int64_t _textureCoordinateAttributeId;
-  std::string _featureTableName;
-  FeatureIDTextureViewStatus _status;
+  FeatureIdTextureViewStatus _status;
+  std::vector<int64_t> _channels;
 };
-
 } // namespace CesiumGltf

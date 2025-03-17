@@ -1,9 +1,10 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumCreditSystem.h"
-#include "Cesium3DTilesSelection/CreditSystem.h"
+#include "CesiumCommon.h"
 #include "CesiumCreditSystemBPLoader.h"
 #include "CesiumRuntime.h"
+#include "CesiumUtility/CreditSystem.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "ScreenCreditsWidget.h"
@@ -11,7 +12,16 @@
 #include <tidybuffio.h>
 #include <vector>
 
-/*static*/ UClass* ACesiumCreditSystem::CesiumCreditSystemBP = nullptr;
+#if WITH_EDITOR
+#include "Editor.h"
+#include "EditorSupportDelegates.h"
+#include "GameDelegates.h"
+#include "IAssetViewport.h"
+#include "LevelEditor.h"
+#include "Modules/ModuleManager.h"
+#endif
+
+/*static*/ UObject* ACesiumCreditSystem::CesiumCreditSystemBP = nullptr;
 namespace {
 
 /**
@@ -32,8 +42,14 @@ ACesiumCreditSystem* findValidDefaultCreditSystem(ULevel* Level) {
         TEXT("No valid level for findValidDefaultCreditSystem"));
     return nullptr;
   }
+#if ENGINE_VERSION_5_4_OR_HIGHER
+  TArray<TObjectPtr<AActor>>& Actors = Level->Actors;
+  using LevelActorPointer = TObjectPtr<AActor>*;
+#else
   TArray<AActor*>& Actors = Level->Actors;
-  AActor** DefaultCreditSystemPtr =
+  using LevelActorPointer = AActor**;
+#endif
+  LevelActorPointer DefaultCreditSystemPtr =
       Actors.FindByPredicate([](AActor* const& InItem) {
         if (!IsValid(InItem)) {
           return false;
@@ -52,6 +68,20 @@ ACesiumCreditSystem* findValidDefaultCreditSystem(ULevel* Level) {
   AActor* DefaultCreditSystem = *DefaultCreditSystemPtr;
   return Cast<ACesiumCreditSystem>(DefaultCreditSystem);
 }
+
+bool checkIfInSubLevel(ACesiumCreditSystem* pCreditSystem) {
+  if (pCreditSystem->GetLevel() != pCreditSystem->GetWorld()->PersistentLevel) {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT(
+            "CesiumCreditSystem should only exist in the Persistent Level. Adding it to a sub-level may cause credits to be lost."));
+    return true;
+  } else {
+    return false;
+  }
+}
+
 } // namespace
 
 FName ACesiumCreditSystem::DEFAULT_CREDITSYSTEM_TAG =
@@ -66,7 +96,7 @@ ACesiumCreditSystem::GetDefaultCreditSystem(const UObject* WorldContextObject) {
   if (!CesiumCreditSystemBP) {
     UCesiumCreditSystemBPLoader* bpLoader =
         NewObject<UCesiumCreditSystemBPLoader>();
-    CesiumCreditSystemBP = bpLoader->CesiumCreditSystemBP;
+    CesiumCreditSystemBP = bpLoader->CesiumCreditSystemBP.LoadSynchronous();
     bpLoader->ConditionalBeginDestroy();
   }
 
@@ -96,7 +126,8 @@ ACesiumCreditSystem::GetDefaultCreditSystem(const UObject* WorldContextObject) {
        actorIterator;
        ++actorIterator) {
     AActor* actor = *actorIterator;
-    if (actor->ActorHasTag(DEFAULT_CREDITSYSTEM_TAG)) {
+    if (actor->GetLevel() == world->PersistentLevel &&
+        actor->ActorHasTag(DEFAULT_CREDITSYSTEM_TAG)) {
       pCreditSystem = Cast<ACesiumCreditSystem>(actor);
       break;
     }
@@ -122,8 +153,9 @@ ACesiumCreditSystem::GetDefaultCreditSystem(const UObject* WorldContextObject) {
     FActorSpawnParameters spawnParameters;
     spawnParameters.SpawnCollisionHandlingOverride =
         ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    spawnParameters.OverrideLevel = world->PersistentLevel;
     pCreditSystem = world->SpawnActor<ACesiumCreditSystem>(
-        CesiumCreditSystemBP,
+        Cast<UClass>(CesiumCreditSystemBP),
         spawnParameters);
     // Null check so the editor doesn't crash when it makes arbitrary calls to
     // this function without a valid world context object.
@@ -142,50 +174,183 @@ ACesiumCreditSystem::GetDefaultCreditSystem(const UObject* WorldContextObject) {
 }
 
 ACesiumCreditSystem::ACesiumCreditSystem()
-    : _pCreditSystem(std::make_shared<Cesium3DTilesSelection::CreditSystem>()),
+    : AActor(),
+      _pCreditSystem(std::make_shared<CesiumUtility::CreditSystem>()),
       _lastCreditsCount(0) {
   PrimaryActorTick.bCanEverTick = true;
+#if WITH_EDITOR
+  this->SetIsSpatiallyLoaded(false);
+#endif
 }
 
 void ACesiumCreditSystem::BeginPlay() {
   Super::BeginPlay();
-  if (!_creditsWidget) {
-    _creditsWidget =
+
+  if (checkIfInSubLevel(this))
+    return;
+
+  this->updateCreditsViewport(true);
+}
+
+void ACesiumCreditSystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+  this->removeCreditsFromViewports();
+  Super::EndPlay(EndPlayReason);
+}
+
+static const FName LevelEditorName("LevelEditor");
+
+void ACesiumCreditSystem::OnConstruction(const FTransform& Transform) {
+  Super::OnConstruction(Transform);
+
+  if (checkIfInSubLevel(this))
+    return;
+
+  this->updateCreditsViewport(false);
+
+#if WITH_EDITOR
+  FLevelEditorModule* pLevelEditorModule =
+      FModuleManager::GetModulePtr<FLevelEditorModule>(LevelEditorName);
+
+  if (pLevelEditorModule && !GetWorld()->IsGameWorld()) {
+    pLevelEditorModule->OnRedrawLevelEditingViewports().RemoveAll(this);
+    pLevelEditorModule->OnRedrawLevelEditingViewports().AddUObject(
+        this,
+        &ACesiumCreditSystem::OnRedrawLevelEditingViewports);
+
+    FEditorSupportDelegates::CleanseEditor.RemoveAll(this);
+    FEditorSupportDelegates::CleanseEditor.AddUObject(
+        this,
+        &ACesiumCreditSystem::OnCleanseEditor);
+
+    FEditorDelegates::PreBeginPIE.RemoveAll(this);
+    FEditorDelegates::PreBeginPIE.AddUObject(
+        this,
+        &ACesiumCreditSystem::OnPreBeginPIE);
+
+    FGameDelegates::Get().GetEndPlayMapDelegate().RemoveAll(this);
+    FGameDelegates::Get().GetEndPlayMapDelegate().AddUObject(
+        this,
+        &ACesiumCreditSystem::OnEndPIE);
+  }
+#endif
+}
+
+void ACesiumCreditSystem::BeginDestroy() {
+#if WITH_EDITOR
+  FLevelEditorModule* pLevelEditorModule =
+      FModuleManager::GetModulePtr<FLevelEditorModule>(LevelEditorName);
+  if (pLevelEditorModule) {
+    pLevelEditorModule->OnRedrawLevelEditingViewports().RemoveAll(this);
+  }
+
+  FEditorSupportDelegates::CleanseEditor.RemoveAll(this);
+  FEditorDelegates::PreBeginPIE.RemoveAll(this);
+  FEditorDelegates::EndPIE.RemoveAll(this);
+#endif
+
+  Super::BeginDestroy();
+}
+
+void ACesiumCreditSystem::updateCreditsViewport(bool recreateWidget) {
+  if (IsRunningDedicatedServer())
+    return;
+  if (!IsValid(GetWorld()))
+    return;
+
+  if (!IsValid(CreditsWidget) || recreateWidget) {
+    CreditsWidget =
         CreateWidget<UScreenCreditsWidget>(GetWorld(), CreditsWidgetClass);
   }
-  if (IsValid(_creditsWidget) && !IsRunningDedicatedServer()) {
-    _creditsWidget->AddToViewport();
+
+#if WITH_EDITOR
+  FLevelEditorModule* pLevelEditorModule =
+      FModuleManager::GetModulePtr<FLevelEditorModule>(LevelEditorName);
+
+  if (pLevelEditorModule && !GetWorld()->IsGameWorld()) {
+    // Add credits to the active editor viewport
+    TSharedPtr<IAssetViewport> pActiveViewport =
+        pLevelEditorModule->GetFirstActiveViewport();
+    if (pActiveViewport.IsValid() &&
+        this->_pLastEditorViewport != pActiveViewport) {
+      this->removeCreditsFromViewports();
+
+      if (!pActiveViewport->HasPlayInEditorViewport()) {
+        auto pSlateWidget = CreditsWidget->TakeWidget();
+        pActiveViewport->AddOverlayWidget(pSlateWidget);
+        this->_pLastEditorViewport = pActiveViewport;
+      }
+    }
+    return;
+  }
+
+  this->removeCreditsFromViewports();
+#endif
+
+  // Add credits to a game viewport
+  CreditsWidget->AddToViewport();
+}
+
+void ACesiumCreditSystem::removeCreditsFromViewports() {
+#if WITH_EDITOR
+  if (this->_pLastEditorViewport.IsValid()) {
+    auto pPinned = this->_pLastEditorViewport.Pin();
+    pPinned->RemoveOverlayWidget(CreditsWidget->TakeWidget());
+    this->_pLastEditorViewport = nullptr;
+  }
+#endif
+
+  if (IsValid(CreditsWidget)) {
+    CreditsWidget->RemoveFromParent();
   }
 }
+
+#if WITH_EDITOR
+void ACesiumCreditSystem::OnRedrawLevelEditingViewports(bool) {
+  this->updateCreditsViewport(false);
+}
+
+void ACesiumCreditSystem::OnPreBeginPIE(bool bIsSimulating) {
+  // When we start play-in-editor, remove the editor viewport credits.
+  // The game will often reuse the same viewport, and we don't want to show
+  // two sets of credits.
+  this->removeCreditsFromViewports();
+}
+
+void ACesiumCreditSystem::OnEndPIE() { this->updateCreditsViewport(false); }
+
+void ACesiumCreditSystem::OnCleanseEditor() {
+  // This is called late in the process of unloading a level.
+  this->removeCreditsFromViewports();
+}
+#endif
 
 bool ACesiumCreditSystem::ShouldTickIfViewportsOnly() const { return true; }
 
 void ACesiumCreditSystem::Tick(float DeltaTime) {
   Super::Tick(DeltaTime);
 
-  if (!_pCreditSystem || !IsValid(_creditsWidget)) {
+  if (!_pCreditSystem || !IsValid(CreditsWidget)) {
     return;
   }
 
-  const std::vector<Cesium3DTilesSelection::Credit>& creditsToShowThisFrame =
+  const std::vector<CesiumUtility::Credit>& creditsToShowThisFrame =
       _pCreditSystem->getCreditsToShowThisFrame();
 
   // if the credit list has changed, we want to reformat the credits
   CreditsUpdated =
       creditsToShowThisFrame.size() != _lastCreditsCount ||
       _pCreditSystem->getCreditsToNoLongerShowThisFrame().size() > 0;
+
   if (CreditsUpdated) {
     FString OnScreenCredits;
     FString Credits;
 
     _lastCreditsCount = creditsToShowThisFrame.size();
 
-    bool first = true;
+    bool firstCreditOnScreen = true;
     for (int i = 0; i < creditsToShowThisFrame.size(); i++) {
-      const Cesium3DTilesSelection::Credit& credit = creditsToShowThisFrame[i];
-      if (i != 0) {
-        Credits += "\n";
-      }
+      const CesiumUtility::Credit& credit = creditsToShowThisFrame[i];
+
       FString CreditRtf;
       const std::string& html = _pCreditSystem->getHtml(credit);
 
@@ -196,18 +361,29 @@ void ACesiumCreditSystem::Tick(float DeltaTime) {
         CreditRtf = ConvertHtmlToRtf(html);
         _htmlToRtf.insert({html, CreditRtf});
       }
-      Credits += CreditRtf;
+
       if (_pCreditSystem->shouldBeShownOnScreen(credit)) {
-        if (first) {
-          first = false;
+        if (firstCreditOnScreen) {
+          firstCreditOnScreen = false;
         } else {
           OnScreenCredits += TEXT(" \u2022 ");
         }
+
         OnScreenCredits += CreditRtf;
+      } else {
+        if (i != 0) {
+          Credits += "\n";
+        }
+
+        Credits += CreditRtf;
       }
     }
-    OnScreenCredits += "<credits url=\"popup\" text=\" Data attribution\"/>";
-    _creditsWidget->SetCredits(Credits, OnScreenCredits);
+
+    if (!Credits.IsEmpty()) {
+      OnScreenCredits += "<credits url=\"popup\" text=\" Data attribution\"/>";
+    }
+
+    CreditsWidget->SetCredits(Credits, OnScreenCredits);
   }
   _pCreditSystem->startNextFrame();
 }
@@ -283,7 +459,7 @@ FString ACesiumCreditSystem::ConvertHtmlToRtf(std::string html) {
   std::string output, url;
   err = tidyParseString(tdoc, html.c_str());
   if (err < 2) {
-    convertHtmlToRtf(output, url, tdoc, tidyGetRoot(tdoc), _creditsWidget);
+    convertHtmlToRtf(output, url, tdoc, tidyGetRoot(tdoc), CreditsWidget);
   }
   tidyBufFree(&tidy_errbuf);
   tidyRelease(tdoc);

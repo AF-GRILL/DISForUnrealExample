@@ -11,7 +11,6 @@
 #include <CesiumUtility/DoublyLinkedList.h>
 
 #include <glm/common.hpp>
-#include <glm/mat4x4.hpp>
 #include <gsl/span>
 
 #include <atomic>
@@ -28,6 +27,12 @@ class TilesetContentLoader;
  * The current state of this tile in the loading process.
  */
 enum class TileLoadState {
+  /**
+   * @brief This tile is in the process of being unloaded, but could not be
+   * fully unloaded because an asynchronous process is using its loaded data.
+   */
+  Unloading = -2,
+
   /**
    * @brief Something went wrong while loading this tile, but it may be a
    * temporary problem.
@@ -109,7 +114,7 @@ public:
    */
   Tile(
       TilesetContentLoader* pLoader,
-      TileExternalContent externalContent) noexcept;
+      std::unique_ptr<TileExternalContent>&& externalContent) noexcept;
 
   /**
    * @brief Construct a tile with an empty content and a loader that is

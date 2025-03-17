@@ -1,7 +1,8 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumBoundingVolumeComponent.h"
 #include "CalcBounds.h"
+#include "CesiumCommon.h"
 #include "CesiumGeoreference.h"
 #include "CesiumLifetime.h"
 #include "UObject/UObjectGlobals.h"
@@ -25,7 +26,6 @@ TileOcclusionRendererProxy* UCesiumBoundingVolumePoolComponent::createProxy() {
       NewObject<UCesiumBoundingVolumeComponent>(this);
   pBoundingVolume->SetVisibility(false);
   pBoundingVolume->bUseAsOccluder = false;
-  pBoundingVolume->SetUsingAbsoluteLocation(true);
 
   pBoundingVolume->SetMobility(EComponentMobility::Movable);
   pBoundingVolume->SetFlags(
@@ -101,9 +101,15 @@ void UCesiumBoundingVolumeComponent::UpdateOcclusion(
     return;
   }
 
+#if ENGINE_VERSION_5_4_OR_HIGHER
+  FPrimitiveComponentId componentId = this->GetPrimitiveSceneId();
+#else
+  FPrimitiveComponentId componentId = this->ComponentId;
+#endif
+
   TileOcclusionState occlusionState =
       cesiumViewExtension.getPrimitiveOcclusionState(
-          this->ComponentId,
+          componentId,
           _occlusionState == TileOcclusionState::Occluded,
           _mappedFrameTime);
 
@@ -114,10 +120,6 @@ void UCesiumBoundingVolumeComponent::UpdateOcclusion(
 }
 
 void UCesiumBoundingVolumeComponent::_updateTransform() {
-  this->SetUsingAbsoluteLocation(true);
-  this->SetUsingAbsoluteRotation(true);
-  this->SetUsingAbsoluteScale(true);
-
   const FTransform transform = FTransform(
       VecMath::createMatrix(this->_cesiumToUnreal * this->_tileTransform));
 

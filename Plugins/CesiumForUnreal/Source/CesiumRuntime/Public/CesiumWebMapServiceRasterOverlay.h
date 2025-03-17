@@ -1,4 +1,4 @@
-// Copyright 2020-2022 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -76,7 +76,6 @@ public:
   int32 MaximumLevel = 14;
 
 protected:
-  virtual std::unique_ptr<Cesium3DTilesSelection::RasterOverlay> CreateOverlay(
-      const Cesium3DTilesSelection::RasterOverlayOptions& options = {})
-      override;
+  virtual std::unique_ptr<CesiumRasterOverlays::RasterOverlay> CreateOverlay(
+      const CesiumRasterOverlays::RasterOverlayOptions& options = {}) override;
 };

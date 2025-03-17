@@ -3,9 +3,13 @@
 #include "ITileExcluder.h"
 #include "Library.h"
 
-namespace Cesium3DTilesSelection {
+#include <CesiumUtility/IntrusivePointer.h>
 
+namespace CesiumRasterOverlays {
 class RasterizedPolygonsOverlay;
+}
+
+namespace Cesium3DTilesSelection {
 
 /**
  * @brief When provided to {@link TilesetOptions::excluders}, uses the polygons
@@ -19,12 +23,12 @@ public:
   /**
    * @brief Constructs a new instance.
    *
-   * @param overlay The overlay definining the polygons. Care must be taken to
-   * ensure that the lifetime of this overlay is longer than the lifetime of the
-   * newly-constructed `RasterizedPolygonsOverlay`.
+   * @param overlay The overlay definining the polygons.
    */
   RasterizedPolygonsTileExcluder(
-      const RasterizedPolygonsOverlay& overlay) noexcept;
+      const CesiumUtility::IntrusivePointer<
+          const CesiumRasterOverlays::RasterizedPolygonsOverlay>&
+          pOverlay) noexcept;
 
   /**
    * @brief Determines whether a given tile is entirely inside a polygon and
@@ -39,10 +43,12 @@ public:
   /**
    * @brief Gets the overlay defining the polygons.
    */
-  const RasterizedPolygonsOverlay& getOverlay() const;
+  const CesiumRasterOverlays::RasterizedPolygonsOverlay& getOverlay() const;
 
 private:
-  const RasterizedPolygonsOverlay* _pOverlay;
+  CesiumUtility::IntrusivePointer<
+      const CesiumRasterOverlays::RasterizedPolygonsOverlay>
+      _pOverlay;
 };
 
 } // namespace Cesium3DTilesSelection

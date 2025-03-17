@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BoundingRegion.h"
+#include "GlobeRectangle.h"
 #include "Library.h"
 
 namespace CesiumGeospatial {
@@ -14,8 +15,22 @@ public:
 
   /**
    * @brief Gets the final region from this builder.
+   *
+   * If no positions are added to this builder, the returned region's rectangle
+   * will be {@link GlobeRectangle::EMPTY}, its minimum height will be 1.0, and
+   * its maximum height will be -1.0 (the minimum will be greater than the
+   * maximum).
    */
-  BoundingRegion toRegion() const;
+  BoundingRegion
+  toRegion(const Ellipsoid& ellipsoid CESIUM_DEFAULT_ELLIPSOID) const;
+
+  /**
+   * @brief Gets the final globe rectangle from this builder.
+   *
+   * If no positions are added to this builder, the returned region's rectangle
+   * will be {@link GlobeRectangle::EMPTY}.
+   */
+  GlobeRectangle toGlobeRectangle() const;
 
   /**
    * @brief Sets the distance from the North or South pole, in radians, that is

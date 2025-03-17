@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "ScreenCreditsWidget.h"
 #include "Components/BackgroundBlur.h"
@@ -12,6 +12,7 @@
 #include "Math/UnrealMathUtility.h"
 #include "Misc/Base64.h"
 #include "Rendering/DrawElements.h"
+#include "Runtime/Launch/Resources/Version.h"
 #include "Slate/SlateGameResources.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -22,9 +23,9 @@
 #include <string>
 #include <vector>
 
-class SRichInlineImage : public SCompoundWidget {
+class SCreditImage : public SCompoundWidget {
 public:
-  SLATE_BEGIN_ARGS(SRichInlineImage) {}
+  SLATE_BEGIN_ARGS(SCreditImage) {}
   SLATE_END_ARGS()
 
 public:
@@ -35,9 +36,9 @@ public:
   }
 };
 
-class SInlineHyperlinkImage : public SCompoundWidget {
+class SCreditHyperlinkImage : public SCompoundWidget {
 public:
-  SLATE_BEGIN_ARGS(SRichInlineImage) {}
+  SLATE_BEGIN_ARGS(SCreditImage) {}
   SLATE_END_ARGS()
 
 public:
@@ -64,9 +65,9 @@ private:
   FButtonStyle ButtonStyle;
 };
 
-class SInlineHyperlinkText : public SCompoundWidget {
+class SCreditHyperlink : public SCompoundWidget {
 public:
-  SLATE_BEGIN_ARGS(SRichInlineImage) {}
+  SLATE_BEGIN_ARGS(SCreditImage) {}
   SLATE_END_ARGS()
 
 public:
@@ -91,9 +92,11 @@ public:
   }
 };
 
-class FRichInlineImage : public FRichTextDecorator {
+class FScreenCreditsDecorator : public FRichTextDecorator {
 public:
-  FRichInlineImage(URichTextBlock* InOwner, UCreditsDecorator* InDecorator)
+  FScreenCreditsDecorator(
+      URichTextBlock* InOwner,
+      UCreditsDecorator* InDecorator)
       : FRichTextDecorator(InOwner), Decorator(InDecorator) {}
 
   virtual bool Supports(
@@ -126,12 +129,12 @@ protected:
     }
     if (Brush) {
       if (Url.IsEmpty()) {
-        return SNew(SRichInlineImage, Brush);
+        return SNew(SCreditImage, Brush);
       } else {
-        return SNew(SInlineHyperlinkImage, Brush, Url);
+        return SNew(SCreditHyperlinkImage, Brush, Url);
       }
     } else
-      return SNew(SInlineHyperlinkText, Text, Url, Decorator);
+      return SNew(SCreditHyperlink, Text, Url, Decorator);
   }
 
 private:
@@ -144,7 +147,7 @@ UCreditsDecorator::UCreditsDecorator(
 
 TSharedPtr<ITextDecorator>
 UCreditsDecorator::CreateDecorator(URichTextBlock* InOwner) {
-  return MakeShareable(new FRichInlineImage(InOwner, this));
+  return MakeShareable(new FScreenCreditsDecorator(InOwner, this));
 }
 
 const FSlateBrush* UCreditsDecorator::FindImageBrush(int32 id) {
@@ -209,30 +212,23 @@ void UScreenCreditsWidget::HandleImageRequest(
     FHttpResponsePtr HttpResponse,
     bool bSucceeded,
     int32 id) {
+  UTexture2D* texture = nullptr;
   if (bSucceeded && HttpResponse.IsValid() &&
-      HttpResponse->GetContentLength() > 0) {
-    UTexture2D* texture =
-        FImageUtils::ImportBufferAsTexture2D(HttpResponse->GetContent());
+      HttpResponse->GetContentLength() > 0 &&
+      (texture = FImageUtils::ImportBufferAsTexture2D(
+           HttpResponse->GetContent())) != nullptr) {
     texture->SRGB = true;
     texture->UpdateResource();
     _textures.Add(texture);
-#if ENGINE_MAJOR_VERSION >= 5
     FTexturePlatformData* pPlatformData = texture->GetPlatformData();
     int32 SizeX = pPlatformData->SizeX;
     int32 SizeY = pPlatformData->SizeY;
-#else
-    int32 SizeX = texture->PlatformData->SizeX;
-    int32 SizeY = texture->PlatformData->SizeY;
-#endif
     _creditImages[id] = new FSlateImageBrush(texture, FVector2D(SizeX, SizeY));
-    // Only update credits after all of the images are done loading.
-    --_numImagesLoading;
-    if (_numImagesLoading == 0) {
-      SetCredits(_credits, _onScreenCredits);
-    }
-    return;
-  } else {
-    --_numImagesLoading;
+  }
+  // Only update credits after all of the images are done loading.
+  --_numImagesLoading;
+  if (_numImagesLoading == 0) {
+    SetCredits(_credits, _onScreenCredits);
   }
 }
 
@@ -246,14 +242,9 @@ std::string UScreenCreditsWidget::LoadImage(const std::string& url) {
       texture->SRGB = true;
       texture->UpdateResource();
       _textures.Add(texture);
-#if ENGINE_MAJOR_VERSION >= 5
       FTexturePlatformData* pPlatformData = texture->GetPlatformData();
       int32 SizeX = pPlatformData->SizeX;
       int32 SizeY = pPlatformData->SizeY;
-#else
-      int32 SizeX = texture->PlatformData->SizeX;
-      int32 SizeY = texture->PlatformData->SizeY;
-#endif
       _creditImages.Add(new FSlateImageBrush(texture, FVector2D(SizeX, SizeY)));
     }
   } else {

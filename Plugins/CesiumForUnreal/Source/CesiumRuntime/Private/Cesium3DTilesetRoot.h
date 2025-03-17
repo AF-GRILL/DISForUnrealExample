@@ -1,9 +1,8 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
 #include "Components/SceneComponent.h"
-#include "CoreMinimal.h"
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include "Cesium3DTilesetRoot.generated.h"
@@ -35,9 +34,6 @@ public:
    */
   const glm::dmat4& GetCesiumTilesetToUnrealRelativeWorldTransform() const;
 
-  virtual void
-  ApplyWorldOffset(const FVector& InOffset, bool bWorldShift) override;
-
   UFUNCTION()
   void HandleGeoreferenceUpdated();
 
@@ -55,7 +51,6 @@ private:
   void _updateAbsoluteLocation();
   void _updateTilesetToUnrealRelativeWorldTransform();
 
-  glm::dvec3 _worldOriginLocation;
   glm::dvec3 _absoluteLocation;
   glm::dmat4 _tilesetToUnrealRelativeWorld;
 };

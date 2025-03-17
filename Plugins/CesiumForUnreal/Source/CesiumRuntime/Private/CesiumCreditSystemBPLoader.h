@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -12,5 +12,7 @@ public:
   UCesiumCreditSystemBPLoader();
 
   UPROPERTY()
-  UClass* CesiumCreditSystemBP;
+  TSoftObjectPtr<UObject> CesiumCreditSystemBP = TSoftObjectPtr<
+      UObject>(FSoftObjectPath(TEXT(
+      "Class'/CesiumForUnreal/CesiumCreditSystemBP.CesiumCreditSystemBP_C'")));
 };

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -43,8 +43,16 @@ public:
   /**
    * Creates and returns a CartographicPolygon object
    * created from the current spline selection.
+   *
+   * @param worldToTileset The transformation from Unreal world coordinates to
+   * the coordinates of the Cesium3DTileset Actor for which the cartographic
+   * polygon is being created.
    */
-  CesiumGeospatial::CartographicPolygon CreateCartographicPolygon() const;
+  CesiumGeospatial::CartographicPolygon
+  CreateCartographicPolygon(const FTransform& worldToTileset) const;
+
+  // AActor overrides
+  virtual void PostLoad() override;
 
 protected:
   virtual void BeginPlay() override;

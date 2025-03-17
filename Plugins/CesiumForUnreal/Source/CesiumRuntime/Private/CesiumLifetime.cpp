@@ -1,26 +1,30 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumLifetime.h"
-#include "Async/Async.h"
+#include "CesiumRuntime.h"
+#if WITH_EDITOR
+#include "Editor.h"
+#include "Editor/EditorEngine.h"
+#include "Engine/Selection.h"
+#endif
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "Runtime/Launch/Resources/Version.h"
+#include "StaticMeshResources.h"
 #include "UObject/Object.h"
 #include <algorithm>
 
-/*static*/ TArray<TWeakObjectPtr<UObject>> CesiumLifetime::_pending;
-/*static*/ TArray<TWeakObjectPtr<UObject>> CesiumLifetime::_nextPending;
-/*static*/ bool CesiumLifetime::_isScheduled = false;
+/*static*/
+AmortizedDestructor CesiumLifetime::amortizedDestructor = AmortizedDestructor();
 
 /*static*/ void CesiumLifetime::destroy(UObject* pObject) {
-  if (!runDestruction(pObject)) {
-    // Object is not finished being destroyed, so add it to the pending list.
-    addToPending(pObject);
-  }
+  amortizedDestructor.destroy(pObject);
 }
 
 /*static*/ void
 CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
+  TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::DestroyComponent)
   UE_LOG(
       LogCesium,
       VeryVerbose,
@@ -39,6 +43,15 @@ CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
     destroyComponentRecursively(pChild);
   }
 
+#if WITH_EDITOR
+  // If the editor is currently selecting this, remove the reference
+  if (GEditor) {
+    USelection* editorSelection = GEditor->GetSelectedComponents();
+    if (editorSelection && editorSelection->IsSelected(pComponent))
+      editorSelection->Deselect(pComponent);
+  }
+#endif
+
   pComponent->DestroyPhysicsState();
   pComponent->DestroyComponent();
   pComponent->ConditionalBeginDestroy();
@@ -46,18 +59,32 @@ CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
   UE_LOG(LogCesium, VeryVerbose, TEXT("Destroying scene component done"));
 }
 
-/*static*/ bool CesiumLifetime::runDestruction(UObject* pObject) {
+void AmortizedDestructor::Tick(float DeltaTime) { processPending(); }
+
+ETickableTickType AmortizedDestructor::GetTickableTickType() const {
+  return ETickableTickType::Always;
+}
+
+bool AmortizedDestructor::IsTickableWhenPaused() const { return true; }
+
+bool AmortizedDestructor::IsTickableInEditor() const { return true; }
+
+TStatId AmortizedDestructor::GetStatId() const { return TStatId(); }
+
+void AmortizedDestructor::destroy(UObject* pObject) {
+  if (!runDestruction(pObject)) {
+    addToPending(pObject);
+  }
+}
+
+bool AmortizedDestructor::runDestruction(UObject* pObject) const {
+  TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::RunDestruction)
+
   if (!pObject) {
     return true;
   }
 
-#if ENGINE_MAJOR_VERSION >= 5
   pObject->MarkAsGarbage();
-#else
-  if (!pObject->IsPendingKill()) {
-    pObject->MarkPendingKill();
-  }
-#endif
 
   if (pObject->HasAnyFlags(RF_FinishDestroyed)) {
     // Already done being destroyed.
@@ -81,19 +108,11 @@ CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
   return false;
 }
 
-/*static*/ void CesiumLifetime::addToPending(UObject* pObject) {
+void AmortizedDestructor::addToPending(UObject* pObject) {
   _pending.Add(pObject);
-  if (!_isScheduled) {
-    _isScheduled = true;
-    AsyncTask(ENamedThreads::GameThread, []() {
-      CesiumLifetime::processPending();
-    });
-  }
 }
 
-/*static*/ void CesiumLifetime::processPending() {
-  _isScheduled = false;
-
+void AmortizedDestructor::processPending() {
   std::swap(_nextPending, _pending);
   _pending.Empty();
 
@@ -102,7 +121,7 @@ CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
   }
 }
 
-/*static*/ void CesiumLifetime::finalizeDestroy(UObject* pObject) {
+void AmortizedDestructor::finalizeDestroy(UObject* pObject) const {
   // The freeing/clearing/destroying done here is normally done in these
   // objects' FinishDestroy method, but unfortunately we can't call that
   // directly without confusing the garbage collector if and when it _does_
@@ -110,24 +129,14 @@ CesiumLifetime::destroyComponentRecursively(USceneComponent* pComponent) {
 
   UTexture2D* pTexture2D = Cast<UTexture2D>(pObject);
   if (pTexture2D) {
-#if ENGINE_MAJOR_VERSION >= 5
     FTexturePlatformData* pPlatformData = pTexture2D->GetPlatformData();
     pTexture2D->SetPlatformData(nullptr);
     delete pPlatformData;
-#else
-    delete pTexture2D->PlatformData;
-    pTexture2D->PlatformData = nullptr;
-#endif
   }
 
   UStaticMesh* pMesh = Cast<UStaticMesh>(pObject);
   if (pMesh) {
-#if ENGINE_MAJOR_VERSION >= 5 ||                                               \
-    (ENGINE_MAJOR_VERSION == 4 && ENGINE_MINOR_VERSION >= 27)
     pMesh->SetRenderData(nullptr);
-#else
-    pMesh->RenderData.Reset();
-#endif
   }
 
   UBodySetup* pBodySetup = Cast<UBodySetup>(pObject);

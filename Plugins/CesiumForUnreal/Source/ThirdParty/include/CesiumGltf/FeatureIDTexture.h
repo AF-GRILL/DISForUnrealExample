@@ -3,34 +3,24 @@
 #pragma once
 
 #include "CesiumGltf/Library.h"
-#include "CesiumGltf/TextureAccessor.h"
+#include "CesiumGltf/TextureInfo.h"
 
-#include <CesiumUtility/ExtensibleObject.h>
-
-#include <string>
+#include <cstdint>
+#include <vector>
 
 namespace CesiumGltf {
 /**
- * @brief An object describing a texture used for storing per-texel feature IDs.
+ * @brief A texture containing feature IDs
  */
-struct CESIUMGLTF_API FeatureIDTexture final
-    : public CesiumUtility::ExtensibleObject {
-  static inline constexpr const char* TypeName = "FeatureIDTexture";
+struct CESIUMGLTF_API FeatureIdTexture final : public TextureInfo {
+  static inline constexpr const char* TypeName = "FeatureIdTexture";
 
   /**
-   * @brief The ID of the feature table in the model's root
-   * `EXT_feature_metadata.featureTables` dictionary.
+   * @brief Texture channels containing feature IDs, identified by index.
+   * Feature IDs may be packed into multiple channels if a single channel does
+   * not have sufficient bit depth to represent all feature ID values. The
+   * values are packed in little-endian order.
    */
-  std::string featureTable;
-
-  /**
-   * @brief A description of the texture and channel to use for feature IDs. The
-   * `channels` property must have a single channel. Furthermore, feature IDs
-   * must be whole numbers in the range `[0, count - 1]` (inclusive), where
-   * `count` is the total number of features in the feature table. Texel values
-   * must be read as integers. Texture filtering should be disabled when
-   * fetching feature IDs.
-   */
-  CesiumGltf::TextureAccessor featureIds;
+  std::vector<int64_t> channels = {0};
 };
 } // namespace CesiumGltf

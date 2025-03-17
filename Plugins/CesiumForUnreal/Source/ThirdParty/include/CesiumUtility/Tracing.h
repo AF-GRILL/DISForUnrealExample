@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef CESIUM_OVERRIDE_TRACING
+
 // If the build system doesn't enable the tracing support
 // consider it disabled by default.
 #ifndef CESIUM_TRACING_ENABLED
@@ -23,7 +25,6 @@
 #else
 
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <fstream>
 #include <mutex>
@@ -274,6 +275,9 @@ public:
 
   int64_t getTracingID(size_t trackIndex) noexcept;
 
+  TrackSet(TrackSet&& rhs) noexcept;
+  TrackSet& operator=(TrackSet&& rhs) noexcept;
+
 private:
   struct Track {
     Track(int64_t id_, bool inUse_)
@@ -341,3 +345,5 @@ private:
 } // namespace CesiumUtility
 
 #endif // CESIUM_TRACING_ENABLED
+
+#endif

@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -27,7 +27,7 @@ public:
   static ACesiumCameraManager*
   GetDefaultCameraManager(const UObject* WorldContextObject);
 
-  ACesiumCameraManager() {}
+  ACesiumCameraManager();
 
   /**
    * @brief Register a new camera with the camera manager.
@@ -38,6 +38,17 @@ public:
    */
   UFUNCTION(BlueprintCallable, Category = "Cesium")
   int32 AddCamera(UPARAM(ref) const FCesiumCamera& Camera);
+
+  /**
+   * @brief Unregister an existing camera with the camera manager.
+   *
+   * @param CameraId The ID of the camera, as returned by AddCamera during
+   * registration.
+   * @return Whether the updating was successful. If false, the CameraId was
+   * invalid.
+   */
+  UFUNCTION(BlueprintCallable, Category = "Cesium")
+  bool RemoveCamera(int32 CameraId);
 
   /**
    * @brief Update the state of the specified camera.

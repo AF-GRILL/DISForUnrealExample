@@ -1,0 +1,11 @@
+prefix=/home/runner/work/cesium-unreal/cesium-unreal/extern/../Source/ThirdParty
+exec_prefix=${prefix}
+libdir=${exec_prefix}//home/runner/work/cesium-unreal/cesium-unreal/extern/../Source/ThirdParty/lib/Linux-x86_64-$<IF:$<CONFIG:Debug>,Debug,Release>
+includedir=${prefix}/include
+
+Name: tidy
+Description: tidy - HTML syntax checker
+URL: https://www.html-tidy.org
+Version: 5.9.14
+Libs: -L${libdir} -ltidy
+Cflags: -I${includedir}

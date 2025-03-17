@@ -1,10 +1,12 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
-#include "Cesium3DTilesSelection/BoundingVolume.h"
+#include "Cesium3DTilesSelection/Tile.h"
+#include "Cesium3DTileset.h"
+#include "CesiumEncodedFeaturesMetadata.h"
 #include "CesiumEncodedMetadataUtility.h"
-#include "CesiumMetadataModel.h"
+#include "CesiumModelMetadata.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "CoreMinimal.h"
@@ -20,11 +22,7 @@ class UStaticMeshComponent;
 
 namespace CreateGltfOptions {
 struct CreateModelOptions;
-} // namespace CreateGltfOptions
-
-#if PHYSICS_INTERFACE_PHYSX
-class IPhysXCooking;
-#endif
+}
 
 namespace CesiumGltf {
 struct Model;
@@ -32,8 +30,11 @@ struct Model;
 
 namespace Cesium3DTilesSelection {
 class Tile;
+}
+
+namespace CesiumRasterOverlays {
 class RasterOverlayTile;
-} // namespace Cesium3DTilesSelection
+}
 
 namespace CesiumGeometry {
 struct Rectangle;
@@ -65,42 +66,50 @@ public:
 
   static TUniquePtr<HalfConstructed> CreateOffGameThread(
       const glm::dmat4x4& Transform,
-      const CreateGltfOptions::CreateModelOptions& Options);
+      const CreateGltfOptions::CreateModelOptions& Options,
+      const CesiumGeospatial::Ellipsoid& Ellipsoid =
+          CesiumGeospatial::Ellipsoid::WGS84);
 
   static UCesiumGltfComponent* CreateOnGameThread(
-      AActor* ParentActor,
+      CesiumGltf::Model& model,
+      ACesium3DTileset* ParentActor,
       TUniquePtr<HalfConstructed> HalfConstructed,
       const glm::dmat4x4& CesiumToUnrealTransform,
       UMaterialInterface* BaseMaterial,
       UMaterialInterface* BaseTranslucentMaterial,
       UMaterialInterface* BaseWaterMaterial,
       FCustomDepthParameters CustomDepthParameters,
-      const Cesium3DTilesSelection::BoundingVolume& boundingVolume);
+      const Cesium3DTilesSelection::Tile& tile,
+      bool createNavCollision);
 
   UCesiumGltfComponent();
   virtual ~UCesiumGltfComponent();
 
   UPROPERTY(EditAnywhere, Category = "Cesium")
-  UMaterialInterface* BaseMaterial;
+  UMaterialInterface* BaseMaterial = nullptr;
 
   UPROPERTY(EditAnywhere, Category = "Cesium")
-  UMaterialInterface* BaseMaterialWithTranslucency;
+  UMaterialInterface* BaseMaterialWithTranslucency = nullptr;
 
   UPROPERTY(EditAnywhere, Category = "Cesium")
-  UMaterialInterface* BaseMaterialWithWater;
+  UMaterialInterface* BaseMaterialWithWater = nullptr;
 
   UPROPERTY(EditAnywhere, Category = "Rendering")
-  FCustomDepthParameters CustomDepthParameters;
+  FCustomDepthParameters CustomDepthParameters{};
 
-  FCesiumMetadataModel Metadata;
+  FCesiumModelMetadata Metadata{};
+  CesiumEncodedFeaturesMetadata::EncodedModelMetadata EncodedMetadata{};
 
-  CesiumEncodedMetadataUtility::EncodedMetadata EncodedMetadata;
+  PRAGMA_DISABLE_DEPRECATION_WARNINGS
+  std::optional<CesiumEncodedMetadataUtility::EncodedMetadata>
+      EncodedMetadata_DEPRECATED = std::nullopt;
+  PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
   void UpdateTransformFromCesium(const glm::dmat4& CesiumToUnrealTransform);
 
   void AttachRasterTile(
       const Cesium3DTilesSelection::Tile& Tile,
-      const Cesium3DTilesSelection::RasterOverlayTile& RasterTile,
+      const CesiumRasterOverlays::RasterOverlayTile& RasterTile,
       UTexture2D* Texture,
       const glm::dvec2& Translation,
       const glm::dvec2& Scale,
@@ -108,7 +117,7 @@ public:
 
   void DetachRasterTile(
       const Cesium3DTilesSelection::Tile& Tile,
-      const Cesium3DTilesSelection::RasterOverlayTile& RasterTile,
+      const CesiumRasterOverlays::RasterOverlayTile& RasterTile,
       UTexture2D* Texture);
 
   UFUNCTION(BlueprintCallable, Category = "Collision")
@@ -116,9 +125,9 @@ public:
 
   virtual void BeginDestroy() override;
 
-  void UpdateFade(float fadePercentage);
+  void UpdateFade(float fadePercentage, bool fadingIn);
 
 private:
   UPROPERTY()
-  UTexture2D* Transparent1x1;
+  UTexture2D* Transparent1x1 = nullptr;
 };

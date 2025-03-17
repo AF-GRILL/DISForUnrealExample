@@ -1,12 +1,19 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
+#include <memory>
 
 class ACesium3DTileset;
 class UCesiumRasterOverlay;
+
+namespace CesiumAsync {
+class AsyncSystem;
+class IAssetAccessor;
+class ICacheDatabase;
+} // namespace CesiumAsync
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCesium, Log, All);
 
@@ -38,3 +45,10 @@ DECLARE_MULTICAST_DELEGATE_OneParam(
 
 CESIUMRUNTIME_API extern FCesiumRasterOverlayIonTroubleshooting
     OnCesiumRasterOverlayIonTroubleshooting;
+
+CESIUMRUNTIME_API CesiumAsync::AsyncSystem& getAsyncSystem() noexcept;
+CESIUMRUNTIME_API const std::shared_ptr<CesiumAsync::IAssetAccessor>&
+getAssetAccessor();
+
+CESIUMRUNTIME_API std::shared_ptr<CesiumAsync::ICacheDatabase>&
+getCacheDatabase();

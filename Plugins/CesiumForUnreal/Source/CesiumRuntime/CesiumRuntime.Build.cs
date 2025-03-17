@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 using UnrealBuildTool;
 using System;
@@ -11,8 +11,6 @@ public class CesiumRuntime : ModuleRules
 {
     public CesiumRuntime(ReadOnlyTargetRules Target) : base(Target)
     {
-        PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-
         PublicIncludePaths.AddRange(
             new string[] {
                 Path.Combine(ModuleDirectory, "../ThirdParty/include")
@@ -21,127 +19,65 @@ public class CesiumRuntime : ModuleRules
 
         PrivateIncludePaths.AddRange(
             new string[] {
-                // ... add other private include paths required here ...
+              Path.Combine(GetModuleDirectory("Renderer"), "Private")
             }
         );
 
-        string libPrefix;
-        string libPostfix;
         string platform;
+        string libSearchPattern;
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
-            platform = "Windows-x64";
-            libPostfix = ".lib";
-            libPrefix = "";
+            platform = "Windows-AMD64-";
+            libSearchPattern = "*.lib";
         }
         else if (Target.Platform == UnrealTargetPlatform.Mac)
         {
-            platform = "Darwin-x64";
-            libPostfix = ".a";
-            libPrefix = "lib";
+            platform = "Darwin-universal-";
+            libSearchPattern = "lib*.a";
         }
         else if (Target.Platform == UnrealTargetPlatform.Android)
         {
-            platform = "Android-xaarch64";
-            libPostfix = ".a";
-            libPrefix = "lib";
+            platform = "Android-aarch64-";
+            libSearchPattern = "lib*.a";
         }
         else if (Target.Platform == UnrealTargetPlatform.Linux)
         {
-            platform = "Linux-x64";
-            libPostfix = ".a";
-            libPrefix = "lib";
+            platform = "Linux-x86_64-";
+            libSearchPattern = "lib*.a";
         }
         else if(Target.Platform == UnrealTargetPlatform.IOS)
         {
-            platform = "iOS-xarm64";
-            libPostfix = ".a";
-            libPrefix = "lib";
-        }
-        else {
-            platform = "Unknown";
-            libPostfix = ".Unknown";
-            libPrefix = "Unknown";
-        }
-
-        string libPath = Path.Combine(ModuleDirectory, "../ThirdParty/lib/" + platform);
-
-        string releasePostfix = "";
-        string debugPostfix = "d";
-
-        bool preferDebug = (Target.Configuration == UnrealTargetConfiguration.Debug || Target.Configuration == UnrealTargetConfiguration.DebugGame);
-        string postfix = preferDebug ? debugPostfix : releasePostfix;
-
-        string[] libs = new string[]
-        {
-            "async++",
-            "Cesium3DTilesSelection",
-            "CesiumAsync",
-            "CesiumGeometry",
-            "CesiumGeospatial",
-            "CesiumGltfReader",
-            "CesiumGltf",
-            "CesiumJsonReader",
-            "CesiumUtility",
-            "draco",
-            "ktx_read",
-            //"MikkTSpace",
-            "modp_b64",
-            "s2geometry",
-            "spdlog",
-            "sqlite3",
-            "tinyxml2",
-            "uriparser",
-            "webpdecoder",
-            "ktx_read",
-        };
-
-        // Use our own copy of MikkTSpace on Android.
-        if (Target.Platform == UnrealTargetPlatform.Android || Target.Platform == UnrealTargetPlatform.IOS)
-        {
-            libs = libs.Concat(new string[] { "MikkTSpace" }).ToArray();
-            PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "../ThirdParty/include/mikktspace"));
-        }
-
-        if (Target.Platform == UnrealTargetPlatform.Win64)
-        {
-            libs = libs.Concat(new string[] { "tidy_static" }).ToArray();
+            platform = "iOS-ARM64-";
+            libSearchPattern = "lib*.a";
         }
         else
         {
-            libs = libs.Concat(new string[] { "tidy" }).ToArray();
+            throw new InvalidOperationException("Cesium for Unreal does not support this platform.");
         }
 
-        if (preferDebug)
+        string libPathBase = Path.Combine(ModuleDirectory, "../ThirdParty/lib/" + platform);
+        string libPathDebug = libPathBase + "Debug";
+        string libPathRelease = libPathBase + "Release";
+
+        bool useDebug = false;
+        if (Target.Configuration == UnrealTargetConfiguration.Debug || Target.Configuration == UnrealTargetConfiguration.DebugGame)
         {
-            // We prefer Debug, but might still use Release if that's all that's available.
-            foreach (string lib in libs)
+            if (Directory.Exists(libPathDebug))
             {
-                string debugPath = Path.Combine(libPath, libPrefix + lib + debugPostfix + libPostfix);
-                if (!File.Exists(debugPath))
-                {
-                    Console.WriteLine("Using release build of cesium-native because a debug build is not available.");
-                    preferDebug = false;
-                    postfix = releasePostfix;
-                    break;
-                }
+                useDebug = true;
             }
         }
 
-        PublicAdditionalLibraries.AddRange(libs.Select(lib => Path.Combine(libPath, libPrefix + lib + postfix + libPostfix)));
+        string libPath = useDebug ? libPathDebug : libPathRelease;
+
+        string[] allLibs = Directory.GetFiles(libPath, libSearchPattern);
+
+        PublicAdditionalLibraries.AddRange(allLibs);
 
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
                 "Core",
-                // ... add other public dependencies that you statically link with here ...
-            }
-        );
-
-
-        PrivateDependencyModuleNames.AddRange(
-            new string[]
-            {
                 "RHI",
                 "CoreUObject",
                 "Engine",
@@ -154,17 +90,21 @@ public class CesiumRuntime : ModuleRules
                 "SunPosition",
                 "DeveloperSettings",
                 "UMG",
-                "RenderCore",
-                "Renderer"
+                "Renderer",
+                "OpenSSL"
             }
         );
 
-        // Use UE's MikkTSpace on non-Android
-        if (Target.Platform != UnrealTargetPlatform.Android)
+        // Use UE's MikkTSpace on most platforms, except Android and iOS.
+        // On those platforms, UE's isn't available, so we use our own.
+        if (Target.Platform != UnrealTargetPlatform.Android && Target.Platform != UnrealTargetPlatform.IOS)
         {
             PrivateDependencyModuleNames.Add("MikkTSpace");
         }
-
+        else
+        {
+            PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "../ThirdParty/include/mikktspace"));
+        }
 
         PublicDefinitions.AddRange(
             new string[]
@@ -174,20 +114,13 @@ public class CesiumRuntime : ModuleRules
                 "GLM_FORCE_XYZW_ONLY",
                 "GLM_FORCE_EXPLICIT_CTOR",
                 "GLM_FORCE_SIZE_T_LENGTH",
-                "TIDY_STATIC"
-                //"CESIUM_TRACING_ENABLED"
+                "TIDY_STATIC",
+                "URI_STATIC_BUILD",
+                "SWL_VARIANT_NO_CONSTEXPR_EMPLACE"
             }
         );
 
-        if (Target.bCompilePhysX && !Target.bUseChaos)
-        {
-            PrivateDependencyModuleNames.Add("PhysXCooking");
-            PrivateDependencyModuleNames.Add("PhysicsCore");
-        }
-        else
-        {
-            PrivateDependencyModuleNames.Add("Chaos");
-        }
+        PrivateDependencyModuleNames.Add("Chaos");
 
         if (Target.bBuildEditor == true)
         {
@@ -210,9 +143,11 @@ public class CesiumRuntime : ModuleRules
             }
         );
 
+        ShadowVariableWarningLevel = WarningLevel.Off;
+        IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_2;
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        PrivatePCHHeaderFile = "Private/PCH.h";
-        CppStandard = CppStandardVersion.Cpp17;
+
+        CppStandard = CppStandardVersion.Cpp20;
         bEnableExceptions = true;
     }
 }

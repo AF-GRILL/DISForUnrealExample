@@ -1,0 +1,13 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: absl_random_seed_sequences
+Description: Abseil random_seed_sequences library
+URL: https://abseil.io/
+Version: 20240116
+
+Libs: "-L${libdir}" -labsl_random_seed_sequences
+Requires: absl_config = 20240116, absl_inlined_vector = 20240116, absl_random_internal_pool_urbg = 20240116, absl_random_internal_salted_seed_seq = 20240116, absl_random_internal_seed_material = 20240116, absl_random_seed_gen_exception = 20240116, absl_span = 20240116
+Cflags: "-I${includedir}" -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-float-conversion -Wno-unknown-warning-option -DNOMINMAX

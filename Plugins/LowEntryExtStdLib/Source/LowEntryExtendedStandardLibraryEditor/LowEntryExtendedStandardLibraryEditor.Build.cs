@@ -5,7 +5,9 @@ public class LowEntryExtendedStandardLibraryEditor : ModuleRules
 {
 	public LowEntryExtendedStandardLibraryEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+		PCHUsage = PCHUsageMode.NoPCHs;
+		bUseUnity = false;
 
 		PublicIncludePaths.AddRange(
 			new string[]

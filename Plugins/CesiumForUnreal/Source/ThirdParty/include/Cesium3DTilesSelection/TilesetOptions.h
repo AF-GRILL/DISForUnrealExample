@@ -2,6 +2,7 @@
 
 #include "Library.h"
 
+#include <CesiumGeospatial/Ellipsoid.h>
 #include <CesiumGltf/Ktx2TranscodeTargets.h>
 
 #include <functional>
@@ -45,6 +46,14 @@ struct CESIUM3DTILESSELECTION_API TilesetContentOptions {
    * the ideal target gpu-compressed pixel format to transcode to.
    */
   CesiumGltf::Ktx2TranscodeTargets ktx2TranscodeTargets;
+
+  /**
+   * @brief Whether or not to transform texture coordinates during load when
+   * textures have the `KHR_texture_transform` extension. Set this to false if
+   * texture coordinates will be transformed another way, such as in a vertex
+   * shader.
+   */
+  bool applyTextureTransform = true;
 };
 
 /**
@@ -280,10 +289,45 @@ struct CESIUM3DTILESSELECTION_API TilesetOptions {
   bool kickDescendantsWhileFadingIn = true;
 
   /**
+   * @brief A soft limit on how long (in milliseconds) to spend on the
+   * main-thread part of tile loading each frame (each call to
+   * Tileset::updateView). A value of 0.0 indicates that all pending
+   * main-thread loads should be completed each tick.
+   *
+   * Setting this to too low of a value will impede overall tile load progress,
+   * creating a discernable load latency.
+   */
+  double mainThreadLoadingTimeLimit = 0.0;
+
+  /**
+   * @brief A soft limit on how long (in milliseconds) to spend unloading
+   * cached tiles each frame (each call to Tileset::updateView). A value of 0.0
+   * indicates that the tile cache should not throttle unloading tiles.
+   */
+  double tileCacheUnloadTimeLimit = 0.0;
+
+  /**
    * @brief Options for configuring the parsing of a {@link Tileset}'s content
    * and construction of Gltf models.
    */
   TilesetContentOptions contentOptions;
+
+  /**
+   * @brief Arbitrary data that will be passed to {@link prepareInLoadThread}.
+   *
+   * This object is copied and given to tile preparation threads,
+   * so it must be inexpensive to copy.
+   */
+  std::any rendererOptions;
+
+  /**
+   * @brief The ellipsoid to use for this tileset.
+   * This value shouldn't be changed after the tileset is constructed. If you
+   * need to change a tileset's ellipsoid, please recreate the tileset.
+   *
+   * If no ellipsoid is set, Ellipsoid::WGS84 will be used by default.
+   */
+  CesiumGeospatial::Ellipsoid ellipsoid = CesiumGeospatial::Ellipsoid::WGS84;
 };
 
 } // namespace Cesium3DTilesSelection

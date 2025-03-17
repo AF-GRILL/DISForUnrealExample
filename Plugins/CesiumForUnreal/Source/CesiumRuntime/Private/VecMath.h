@@ -1,9 +1,14 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
 #include "Math/Matrix.h"
 #include <glm/glm.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <type_traits>
 
 /**
  * @brief Vector math utility functions.
@@ -183,6 +188,9 @@ public:
    * The result will be an `FRotator`. Note that any translation and scaling
    * information will be lost.
    *
+   * This method assumes that `m` is already associated with the left-handed UE
+   * coordinate system.
+   *
    * @param m The `gl` matrix.
    * @return The `FRotator`.
    */
@@ -191,6 +199,9 @@ public:
   /**
    * @brief Create a `FRotator` from the given `glm` matrix.
    *
+   * This method assumes that `m` is already associated with the left-handed UE
+   * coordinate system.
+   *
    * @param m The `glm` matrix.
    * @return The `FRotator`.
    */
@@ -198,6 +209,9 @@ public:
 
   /**
    * @brief Create a `FRotator` from the given `glm` quaternion.
+   *
+   * This method assumes that `q` is already associated with the left-handed UE
+   * coordinate system.
    *
    * @param q The `glm` quaternion.
    * @return The `FRotator`.
@@ -322,3 +336,16 @@ public:
    */
   static glm::dvec3 subtract3D(const FIntVector& i, const FVector& f) noexcept;
 };
+
+template <class IntType>
+std::enable_if_t<std::is_signed_v<IntType>, float> GltfNormalized(IntType val) {
+  return std::max(
+      static_cast<float>(val) / std::numeric_limits<IntType>::max(),
+      -1.0f);
+}
+
+template <class IntType>
+std::enable_if_t<std::is_unsigned_v<IntType>, float>
+GltfNormalized(IntType val) {
+  return static_cast<float>(val) / std::numeric_limits<IntType>::max();
+}

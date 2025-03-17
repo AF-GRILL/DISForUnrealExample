@@ -1,14 +1,17 @@
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumViewExtension.h"
 
 #include "Cesium3DTileset.h"
+#include "CesiumCommon.h"
+#include "Runtime/Launch/Resources/Version.h"
 
 using namespace Cesium3DTilesSelection;
 
 CesiumViewExtension::CesiumViewExtension(const FAutoRegister& autoRegister)
     : FSceneViewExtensionBase(autoRegister) {}
 
-CesiumViewExtension::~CesiumViewExtension() {}
+CesiumViewExtension::~CesiumViewExtension() = default;
 
 TileOcclusionState CesiumViewExtension::getPrimitiveOcclusionState(
     const FPrimitiveComponentId& id,
@@ -83,16 +86,21 @@ void CesiumViewExtension::BeginRenderViewFamily(
   }
 }
 
-void CesiumViewExtension::PreRenderViewFamily_RenderThread(
-    FRHICommandListImmediate& RHICmdList,
-    FSceneViewFamily& InViewFamily) {}
+namespace {
 
-void CesiumViewExtension::PreRenderView_RenderThread(
-    FRHICommandListImmediate& RHICmdList,
-    FSceneView& InView) {}
+const TSet<FPrimitiveOcclusionHistory, FPrimitiveOcclusionHistoryKeyFuncs>&
+getOcclusionHistorySet(const FSceneViewState* pViewState) {
+#if ENGINE_VERSION_5_3_OR_HIGHER
+  return pViewState->Occlusion.PrimitiveOcclusionHistorySet;
+#else
+  return pViewState->PrimitiveOcclusionHistorySet;
+#endif
+}
+
+} // namespace
 
 void CesiumViewExtension::PostRenderViewFamily_RenderThread(
-    FRHICommandListImmediate& RHICmdList,
+    FRDGBuilder& GraphBuilder,
     FSceneViewFamily& InViewFamily) {
   if (!this->_isEnabled)
     return;
@@ -114,7 +122,7 @@ void CesiumViewExtension::PostRenderViewFamily_RenderThread(
       continue;
 
     const FSceneViewState* pViewState = pView->State->GetConcreteViewState();
-    if (pViewState && pViewState->PrimitiveOcclusionHistorySet.Num()) {
+    if (pViewState && getOcclusionHistorySet(pViewState).Num()) {
       SceneViewOcclusionResults& occlusionResults =
           _currentAggregation_renderThread.occlusionResultsByView
               .emplace_back();
@@ -133,8 +141,8 @@ void CesiumViewExtension::PostRenderViewFamily_RenderThread(
       }
 
       occlusionResults.PrimitiveOcclusionResults.Reserve(
-          pViewState->PrimitiveOcclusionHistorySet.Num());
-      for (const auto& element : pViewState->PrimitiveOcclusionHistorySet) {
+          getOcclusionHistorySet(pViewState).Num());
+      for (const auto& element : getOcclusionHistorySet(pViewState)) {
         occlusionResults.PrimitiveOcclusionResults.Emplace(element);
       }
 
@@ -153,26 +161,45 @@ void CesiumViewExtension::PostRenderViewFamily_RenderThread(
 
         const uint32 PrimitiveCount = pScene->Primitives.Num();
         for (uint32 i = 0; i < PrimitiveCount; ++i) {
-          // We're only concerned with primitives that are not visible
-          if (visibility[i])
-            continue;
-
           FPrimitiveSceneInfo* pSceneInfo = pScene->Primitives[i];
           if (pSceneInfo == nullptr)
             continue;
 
-          const PrimitiveOcclusionResult* pOcclusionResult =
-              occlusion.Find(pSceneInfo->PrimitiveComponentId);
-          if (!pOcclusionResult || pOcclusionResult->LastConsideredTime <
-                                       pViewState->LastRenderTime) {
-            // No valid occlusion history for this culled primitive, so create
-            // it.
-            occlusion.Emplace(PrimitiveOcclusionResult(
-                pSceneInfo->PrimitiveComponentId,
-                pViewState->LastRenderTime,
-                0.0f,
-                true,
-                true));
+          bool setOcclusionState = false;
+          bool isOccluded = false;
+
+          // Unreal will never compute occlusion for primitives that are
+          // selected in the Editor. So treat these as unoccluded.
+#if WITH_EDITOR
+          if (GIsEditor) {
+            if (pScene->PrimitivesSelected[i]) {
+              setOcclusionState = true;
+              isOccluded = false;
+            }
+          }
+#endif
+
+          // If this primitive is not visible at all (and also not selected!),
+          // treat is as occluded.
+          if (!setOcclusionState && !visibility[i]) {
+            setOcclusionState = true;
+            isOccluded = true;
+          }
+
+          if (setOcclusionState) {
+            const PrimitiveOcclusionResult* pOcclusionResult =
+                occlusion.Find(pSceneInfo->PrimitiveComponentId);
+            if (!pOcclusionResult || pOcclusionResult->LastConsideredTime <
+                                         pViewState->LastRenderTime) {
+              // No valid occlusion history for this culled primitive, so create
+              // it.
+              occlusion.Emplace(PrimitiveOcclusionResult(
+                  pSceneInfo->PrimitiveComponentId,
+                  pViewState->LastRenderTime,
+                  isOccluded ? 0.0f : 100.0f,
+                  true,
+                  isOccluded));
+            }
           }
         }
       }

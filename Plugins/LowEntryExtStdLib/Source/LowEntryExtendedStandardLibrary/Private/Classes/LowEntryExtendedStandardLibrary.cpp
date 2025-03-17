@@ -14,6 +14,7 @@
 #include "LowEntryLatentActionNone.h"
 #include "LowEntryLatentActionObject.h"
 #include "LowEntryLatentActionString.h"
+#include "LowEntryLatentActionStruct.h"
 
 #include "LowEntryParsedHashcash.h"
 
@@ -49,14 +50,18 @@
 
 #include "GameMapsSettings.h"
 #include "IImageWrapperModule.h"
+#include "TextureResource.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 
 #include "Engine/GameViewportClient.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/Texture2D.h"
 #include "Widgets/SViewport.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Misc/ConfigCacheIni.h"
+#include "UObject/ObjectRedirector.h"
 
 
 ULowEntryExtendedStandardLibrary::ULowEntryExtendedStandardLibrary(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer) {}
@@ -164,7 +169,7 @@ bool ULowEntryExtendedStandardLibrary::WithEditor()
 
 bool ULowEntryExtendedStandardLibrary::Html5Platform()
 {
-#if false/*PLATFORM_HTML5*/
+#if defined( PLATFORM_HTML5 ) && PLATFORM_HTML5
 	return true;
 #else
 	return false;
@@ -173,7 +178,7 @@ bool ULowEntryExtendedStandardLibrary::Html5Platform()
 
 bool ULowEntryExtendedStandardLibrary::WindowsPlatform()
 {
-#if PLATFORM_WINDOWS
+#if defined( PLATFORM_WINDOWS ) && PLATFORM_WINDOWS
 	return true;
 #else
 	return false;
@@ -182,11 +187,11 @@ bool ULowEntryExtendedStandardLibrary::WindowsPlatform()
 
 bool ULowEntryExtendedStandardLibrary::Windows32Platform()
 {
-#if PLATFORM_WINDOWS
+#if defined( PLATFORM_WINDOWS ) && PLATFORM_WINDOWS
 #ifdef _WIN64
 	return false;
 #else
-		return true;
+	return true;
 #endif
 #else
 	return false;
@@ -195,11 +200,11 @@ bool ULowEntryExtendedStandardLibrary::Windows32Platform()
 
 bool ULowEntryExtendedStandardLibrary::Windows64Platform()
 {
-#if PLATFORM_WINDOWS
+#if defined( PLATFORM_WINDOWS ) && PLATFORM_WINDOWS
 #ifdef _WIN64
 	return true;
 #else
-		return false;
+	return false;
 #endif
 #else
 	return false;
@@ -208,12 +213,8 @@ bool ULowEntryExtendedStandardLibrary::Windows64Platform()
 
 bool ULowEntryExtendedStandardLibrary::WindowsRtPlatform()
 {
-#ifdef PLATFORM_WINRT
-#if PLATFORM_WINRT
-		return true;
-#else
-		return false;
-#endif
+#if defined( PLATFORM_WINRT ) && PLATFORM_WINRT
+	return true;
 #else
 	return false;
 #endif
@@ -221,12 +222,8 @@ bool ULowEntryExtendedStandardLibrary::WindowsRtPlatform()
 
 bool ULowEntryExtendedStandardLibrary::WindowsRtArmPlatform()
 {
-#ifdef PLATFORM_WINRT_ARM
-#if PLATFORM_WINRT_ARM
-		return true;
-#else
-		return false;
-#endif
+#if defined( PLATFORM_WINRT_ARM ) && PLATFORM_WINRT_ARM
+	return true;
 #else
 	return false;
 #endif
@@ -234,7 +231,7 @@ bool ULowEntryExtendedStandardLibrary::WindowsRtArmPlatform()
 
 bool ULowEntryExtendedStandardLibrary::LinuxPlatform()
 {
-#if PLATFORM_LINUX
+#if defined( PLATFORM_LINUX ) && PLATFORM_LINUX
 	return true;
 #else
 	return false;
@@ -243,7 +240,7 @@ bool ULowEntryExtendedStandardLibrary::LinuxPlatform()
 
 bool ULowEntryExtendedStandardLibrary::MacPlatform()
 {
-#if PLATFORM_MAC
+#if defined( PLATFORM_MAC ) && PLATFORM_MAC
 	return true;
 #else
 	return false;
@@ -252,7 +249,7 @@ bool ULowEntryExtendedStandardLibrary::MacPlatform()
 
 bool ULowEntryExtendedStandardLibrary::Ps4Platform()
 {
-#if PLATFORM_PS4
+#if defined( PLATFORM_PS4 ) && PLATFORM_PS4
 	return true;
 #else
 	return false;
@@ -261,7 +258,7 @@ bool ULowEntryExtendedStandardLibrary::Ps4Platform()
 
 bool ULowEntryExtendedStandardLibrary::XboxOnePlatform()
 {
-#if PLATFORM_XBOXONE
+#if defined( PLATFORM_XBOXONE ) && PLATFORM_XBOXONE
 	return true;
 #else
 	return false;
@@ -270,7 +267,7 @@ bool ULowEntryExtendedStandardLibrary::XboxOnePlatform()
 
 bool ULowEntryExtendedStandardLibrary::SwitchPlatform()
 {
-#if PLATFORM_SWITCH
+#if defined( PLATFORM_SWITCH ) && PLATFORM_SWITCH
 	return true;
 #else
 	return false;
@@ -279,7 +276,7 @@ bool ULowEntryExtendedStandardLibrary::SwitchPlatform()
 
 bool ULowEntryExtendedStandardLibrary::AndroidPlatform()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return true;
 #else
 	return false;
@@ -288,7 +285,7 @@ bool ULowEntryExtendedStandardLibrary::AndroidPlatform()
 
 bool ULowEntryExtendedStandardLibrary::IosPlatform()
 {
-#if PLATFORM_IOS
+#if defined( PLATFORM_IOS ) && PLATFORM_IOS
 	return true;
 #else
 	return false;
@@ -297,7 +294,7 @@ bool ULowEntryExtendedStandardLibrary::IosPlatform()
 
 bool ULowEntryExtendedStandardLibrary::DesktopPlatform()
 {
-#if PLATFORM_DESKTOP
+#if defined( PLATFORM_DESKTOP ) && PLATFORM_DESKTOP
 	return true;
 #else
 	return false;
@@ -332,7 +329,7 @@ FString ULowEntryExtendedStandardLibrary::GetProjectVersion()
 
 void ULowEntryExtendedStandardLibrary::GetBatteryState(ELowEntryBatteryState& State, bool& Success)
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	Success = true;
 	FAndroidMisc::FBatteryState Data = FAndroidMisc::GetBatteryState();
 	if(Data.State == FAndroidMisc::EBatteryState::BATTERY_STATE_CHARGING)
@@ -363,7 +360,7 @@ void ULowEntryExtendedStandardLibrary::GetBatteryState(ELowEntryBatteryState& St
 
 void ULowEntryExtendedStandardLibrary::GetBatteryCharge(int32& Percentage, bool& Success)
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	Success = true;
 	FAndroidMisc::FBatteryState Data = FAndroidMisc::GetBatteryState();
 	Percentage = Data.Level;
@@ -375,7 +372,7 @@ void ULowEntryExtendedStandardLibrary::GetBatteryCharge(int32& Percentage, bool&
 
 void ULowEntryExtendedStandardLibrary::GetBatteryTemperature(double& Celsius, bool& Success)
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	Success = true;
 	FAndroidMisc::FBatteryState Data = FAndroidMisc::GetBatteryState();
 	Celsius = Data.Temperature;
@@ -388,7 +385,7 @@ void ULowEntryExtendedStandardLibrary::GetBatteryTemperature(double& Celsius, bo
 
 void ULowEntryExtendedStandardLibrary::GetCurrentVolumePercentage(double& Percentage, bool& Success)
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	Success = true;
 	Percentage = (FAndroidMisc::GetVolumeState(nullptr) / 15.0f);
 #else
@@ -400,7 +397,7 @@ void ULowEntryExtendedStandardLibrary::GetCurrentVolumePercentage(double& Percen
 
 void ULowEntryExtendedStandardLibrary::GetAndroidVolume(int& Volume)
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	Volume = FAndroidMisc::GetVolumeState(nullptr);
 #else
 	Volume = 0;
@@ -409,7 +406,7 @@ void ULowEntryExtendedStandardLibrary::GetAndroidVolume(int& Volume)
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidDeviceMake()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetDeviceMake();
 #else
 	return TEXT("");
@@ -418,7 +415,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidDeviceMake()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidDeviceModel()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetDeviceModel();
 #else
 	return TEXT("");
@@ -427,7 +424,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidDeviceModel()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidVersion()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetAndroidVersion();
 #else
 	return TEXT("");
@@ -436,7 +433,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidVersion()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidOsLanguage()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetOSLanguage();
 #else
 	return TEXT("");
@@ -445,7 +442,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidOsLanguage()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidDefaultLocale()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetDefaultLocale();
 #else
 	return TEXT("");
@@ -454,7 +451,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidDefaultLocale()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidGpuFamily()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetGPUFamily();
 #else
 	return TEXT("");
@@ -463,7 +460,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidGpuFamily()
 
 FString ULowEntryExtendedStandardLibrary::GetAndroidGlVersion()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetGLVersion();
 #else
 	return TEXT("");
@@ -472,7 +469,7 @@ FString ULowEntryExtendedStandardLibrary::GetAndroidGlVersion()
 
 int32 ULowEntryExtendedStandardLibrary::GetAndroidBuildVersion()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::GetAndroidBuildVersion();
 #else
 	return -1;
@@ -481,7 +478,7 @@ int32 ULowEntryExtendedStandardLibrary::GetAndroidBuildVersion()
 
 int32 ULowEntryExtendedStandardLibrary::GetAndroidNumberOfCores()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::NumberOfCores();
 #else
 	return -1;
@@ -490,7 +487,7 @@ int32 ULowEntryExtendedStandardLibrary::GetAndroidNumberOfCores()
 
 bool ULowEntryExtendedStandardLibrary::AreAndroidHeadphonesPluggedIn()
 {
-#if PLATFORM_ANDROID
+#if defined( PLATFORM_ANDROID ) && PLATFORM_ANDROID
 	return FAndroidMisc::AreHeadPhonesPluggedIn();
 #else
 	return false;
@@ -513,7 +510,7 @@ void ULowEntryExtendedStandardLibrary::GetMaximumVolume(int32& Volume, bool& Suc
 
 void ULowEntryExtendedStandardLibrary::CreateObject(TSubclassOf<UObject> Class, UObject*& Object)
 {
-	Object = NewObject<UObject>(GetTransientPackage(), Class);
+	Object = NewObject<UObject>(reinterpret_cast<UObject*>(GetTransientPackage()), Class);
 }
 
 
@@ -614,6 +611,11 @@ void ULowEntryExtendedStandardLibrary::LatentAction_Create_Object(ULowEntryLaten
 void ULowEntryExtendedStandardLibrary::LatentAction_Create_String(ULowEntryLatentActionString*& LatentAction)
 {
 	LatentAction = ULowEntryLatentActionString::Create();
+}
+
+void ULowEntryExtendedStandardLibrary::LatentAction_Create_Struct(ULowEntryLatentActionStruct*& LatentAction)
+{
+	LatentAction = ULowEntryLatentActionStruct::Create();
 }
 
 
@@ -812,10 +814,8 @@ TArray<uint8> ULowEntryExtendedStandardLibrary::StringToBytesUtf8(const FString&
 		return TArray<uint8>();
 	}
 
-	TArray<uint8> ByteArray;
-	FTCHARToUTF8 Src = FTCHARToUTF8(String.GetCharArray().GetData());
-	ByteArray.Append((uint8*)Src.Get(), Src.Length());
-	return ByteArray;
+	const FTCHARToUTF8 Src = FTCHARToUTF8(String.GetCharArray().GetData());
+	return TArray(reinterpret_cast<const uint8*>(Src.Get()), Src.Length());
 }
 
 FString ULowEntryExtendedStandardLibrary::BytesToStringUtf8(const TArray<uint8>& ByteArray, int32 Index, int32 Length)
@@ -839,10 +839,8 @@ FString ULowEntryExtendedStandardLibrary::BytesToStringUtf8(const TArray<uint8>&
 		return TEXT("");
 	}
 
-	FString String = TEXT("");
-	FUTF8ToTCHAR Src = FUTF8ToTCHAR(reinterpret_cast<const ANSICHAR*>(ByteArray.GetData() + Index), Length);
-	String.AppendChars(Src.Get(), Src.Length());
-	return String;
+	const FUTF8ToTCHAR Src(reinterpret_cast<const ANSICHAR*>(ByteArray.GetData() + Index), Length);
+	return FString(Src.Length(), Src.Get());
 }
 
 
@@ -1566,72 +1564,10 @@ void ULowEntryExtendedStandardLibrary::Texture2DToBytes(UTexture2D* Texture2D, c
 		return;
 	}
 
-#if WITH_EDITORONLY_DATA
-	if (Texture2D->MipGenSettings != TMGS_NoMipmaps)
-	{
-		UE_LOG(LogBlueprintUserMessages, Error, TEXT("in Texture2DToBytes, the given Texture2D has to have MipGenSettings set to NoMipmaps, otherwise the blueprint will always fail"));
-		return;
-	}
-#endif
-
-	bool ChangedTexture2D = false;
-	bool PreviousSRGB = Texture2D->SRGB;
-	TextureCompressionSettings PreviousCompressionSettings = Texture2D->CompressionSettings;
-
-	if ((PreviousSRGB != false) || (PreviousCompressionSettings != TC_VectorDisplacementmap))
-	{
-		ChangedTexture2D = true;
-		Texture2D->SRGB = false;
-		Texture2D->CompressionSettings = TC_VectorDisplacementmap;
-		Texture2D->UpdateResource();
-	}
-
-	FTexture2DMipMap& Mip0 = Texture2D->GetPlatformData()->Mips[0];
-	int32 Mip0Width = Mip0.SizeX;
-	int32 Mip0Height = Mip0.SizeY;
-
-	auto Mip0Data = &Mip0.BulkData;
-	if (Mip0Data == nullptr)
-	{
-		if (ChangedTexture2D)
-		{
-			Texture2D->SRGB = PreviousSRGB;
-			Texture2D->CompressionSettings = PreviousCompressionSettings;
-			Texture2D->UpdateResource();
-		}
-		return;
-	}
-
-	void* Mip0Pixels_ = Mip0Data->Lock(LOCK_READ_ONLY);
-	FColor* Mip0Pixels = static_cast<FColor*>(Mip0Pixels_);
-	if (Mip0Pixels == nullptr)
-	{
-		Mip0Data->Unlock();
-		if (ChangedTexture2D)
-		{
-			Texture2D->SRGB = PreviousSRGB;
-			Texture2D->CompressionSettings = PreviousCompressionSettings;
-			Texture2D->UpdateResource();
-		}
-		return;
-	}
-
+	int32 Mip0Width = 0;
+	int32 Mip0Height = 0;
 	TArray<FColor> Pixels;
-	int32 Total = Mip0Width * Mip0Height;
-	Pixels.SetNum(Total);
-	for (int32 i = 0; i < Total; i++)
-	{
-		Pixels[i] = Mip0Pixels[i];
-	}
-	Mip0Data->Unlock();
-
-	if (ChangedTexture2D)
-	{
-		Texture2D->SRGB = PreviousSRGB;
-		Texture2D->CompressionSettings = PreviousCompressionSettings;
-		Texture2D->UpdateResource();
-	}
-
+	Texture2DToPixels(Texture2D, Mip0Width, Mip0Height, Pixels);
 	PixelsToBytes(Mip0Width, Mip0Height, Pixels, ImageFormat, ByteArray, CompressionQuality);
 }
 
@@ -1641,15 +1577,6 @@ void ULowEntryExtendedStandardLibrary::BytesToPixels(const TArray<uint8>& ByteAr
 	Width = 0;
 	Height = 0;
 	Pixels = TArray<FColor>();
-
-	//UTexture2D* Texture2D = ULowEntryExtendedStandardLibrary::BytesToImage(ByteArray, ImageFormat, Index, Length);
-	//if(Texture2D == nullptr)
-	//{
-	//	return;
-	//}
-	//
-	//ULowEntryExtendedStandardLibrary::Texture2DToPixels(Texture2D, Width, Height, Pixels);
-	//return;
 
 	if (ByteArray.Num() <= 0)
 	{
@@ -1800,6 +1727,108 @@ TArray<FColor> ULowEntryExtendedStandardLibrary::GrayscalePixels(const TArray<FC
 }
 
 
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsRG(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.G, Pixel.R, Pixel.B, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsGB(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.B, Pixel.G, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsRB(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.B, Pixel.G, Pixel.R, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsRA(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.A, Pixel.G, Pixel.B, Pixel.R));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsGA(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.A, Pixel.B, Pixel.G));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::FlipPixelChannelsBA(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.G, Pixel.A, Pixel.B));
+	}
+	return Result;
+}
+
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::InvertPixelChannelR(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R ^ 0xff, Pixel.G, Pixel.B, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::InvertPixelChannelG(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.G ^ 0xff, Pixel.B, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::InvertPixelChannelB(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.G, Pixel.B ^ 0xff, Pixel.A));
+	}
+	return Result;
+}
+
+TArray<FColor> ULowEntryExtendedStandardLibrary::InvertPixelChannelA(const TArray<FColor>& Pixels)
+{
+	TArray<FColor> Result;
+	for (const FColor& Pixel : Pixels)
+	{
+		Result.Add(FColor(Pixel.R, Pixel.G, Pixel.B, Pixel.A ^ 0xff));
+	}
+	return Result;
+}
+
+
 void ULowEntryExtendedStandardLibrary::Texture2DToPixels(UTexture2D* Texture2D, int32& Width, int32& Height, TArray<FColor>& Pixels)
 {
 	Width = 0;
@@ -1838,6 +1867,7 @@ void ULowEntryExtendedStandardLibrary::Texture2DToPixels(UTexture2D* Texture2D, 
 	auto Mip0Data = &Mip0.BulkData;
 	if (Mip0Data == nullptr)
 	{
+		UE_LOG(LogBlueprintUserMessages, Error, TEXT("in ImageToPixels, Mips[0].BulkData couldn't be accessed (it was NULL)"));
 		if (ChangedTexture2D)
 		{
 			Texture2D->SRGB = PreviousSRGB;
@@ -1851,6 +1881,7 @@ void ULowEntryExtendedStandardLibrary::Texture2DToPixels(UTexture2D* Texture2D, 
 	FColor* Mip0Pixels = static_cast<FColor*>(Mip0Pixels_);
 	if (Mip0Pixels == nullptr)
 	{
+		UE_LOG(LogBlueprintUserMessages, Error, TEXT("in ImageToPixels, Mips[0].BulkData couldn't be cast to FColor*"));
 		Mip0Data->Unlock();
 		if (ChangedTexture2D)
 		{
@@ -1865,9 +1896,39 @@ void ULowEntryExtendedStandardLibrary::Texture2DToPixels(UTexture2D* Texture2D, 
 	Height = Mip0Height;
 	int32 Total = Mip0Width * Mip0Height;
 	Pixels.SetNum(Total);
-	for (int32 i = 0; i < Total; i++)
+	EPixelFormat PixelFormat = Texture2D->GetPixelFormat();
+	if (PixelFormat == PF_B8G8R8A8)
 	{
-		Pixels[i] = Mip0Pixels[i];
+		for (int32 i = 0; i < Total; i++)
+		{
+			Pixels[i] = Mip0Pixels[i];
+		}
+	}
+	else if (PixelFormat == PF_R8G8B8A8)
+	{
+		for (int32 i = 0; i < Total; i++)
+		{
+			Pixels[i] = FColor(Mip0Pixels[i].B, Mip0Pixels[i].G, Mip0Pixels[i].R, Mip0Pixels[i].A);
+		}
+	}
+	else if (PixelFormat == PF_A8R8G8B8)
+	{
+		for (int32 i = 0; i < Total; i++)
+		{
+			Pixels[i] = FColor(Mip0Pixels[i].A, Mip0Pixels[i].B, Mip0Pixels[i].G, Mip0Pixels[i].R);
+		}
+	}
+	else
+	{
+		UE_LOG(LogBlueprintUserMessages, Error, TEXT("in ImageToPixels, the given Texture2D has an unsupported PixelFormat (%s), the supported formats are: PF_R8G8B8A8, PF_B8G8R8A8, PF_A8R8G8B8"), *Texture2D->GetPixelFormatEnum()->GetNameByValue(PixelFormat).GetPlainNameString());
+		Mip0Data->Unlock();
+		if (ChangedTexture2D)
+		{
+			Texture2D->SRGB = PreviousSRGB;
+			Texture2D->CompressionSettings = PreviousCompressionSettings;
+			Texture2D->UpdateResource();
+		}
+		return;
 	}
 	Mip0Data->Unlock();
 
@@ -2068,6 +2129,8 @@ void ULowEntryExtendedStandardLibrary::LoadVideo(UMediaSoundComponent* MediaSoun
 	Texture = nullptr;
 
 	UMediaPlayer* LoadPlayer = NewObject<UMediaPlayer>();
+	LoadPlayer->SetLooping(Loop);
+	LoadPlayer->PlayOnOpen = PlayOnOpen;
 	if (!LoadPlayer->OpenUrl(Url))
 	{
 		return;
@@ -2076,8 +2139,6 @@ void ULowEntryExtendedStandardLibrary::LoadVideo(UMediaSoundComponent* MediaSoun
 	Success = true;
 
 	Player = LoadPlayer;
-	Player->SetLooping(Loop);
-	Player->PlayOnOpen = PlayOnOpen;
 
 	Texture = NewObject<UMediaTexture>();
 	Texture->SetMediaPlayer(Player);
@@ -2984,6 +3045,53 @@ void ULowEntryExtendedStandardLibrary::SortObjectArrayDirectly(UPARAM(ref) TArra
 		{
 			bool Result = false;
 			Comparator.Execute(&A, &B, Result);
+			return !Result;
+		});
+	}
+}
+
+
+TArray<FInstancedStruct> ULowEntryExtendedStandardLibrary::SortStructArray(const TArray<FInstancedStruct>& StructArray, FDelegateULowEntryExtendedStandardLibraryCompareStructs Comparator, const bool Reversed)
+{
+	TArray<FInstancedStruct> Array = StructArray;
+	if (!Reversed)
+	{
+		Array.Sort([Comparator](const FInstancedStruct& A, const FInstancedStruct& B)
+		{
+			bool Result = false;
+			Comparator.Execute(A, B, Result);
+			return Result;
+		});
+	}
+	else
+	{
+		Array.Sort([Comparator](const FInstancedStruct& A, const FInstancedStruct& B)
+		{
+			bool Result = false;
+			Comparator.Execute(A, B, Result);
+			return !Result;
+		});
+	}
+	return Array;
+}
+
+void ULowEntryExtendedStandardLibrary::SortStructArrayDirectly(UPARAM(ref) TArray<FInstancedStruct>& StructArray, FDelegateULowEntryExtendedStandardLibraryCompareStructs Comparator, const bool Reversed)
+{
+	if (!Reversed)
+	{
+		StructArray.Sort([Comparator](const FInstancedStruct& A, const FInstancedStruct& B)
+		{
+			bool Result = false;
+			Comparator.Execute(A, B, Result);
+			return Result;
+		});
+	}
+	else
+	{
+		StructArray.Sort([Comparator](const FInstancedStruct& A, const FInstancedStruct& B)
+		{
+			bool Result = false;
+			Comparator.Execute(A, B, Result);
 			return !Result;
 		});
 	}
@@ -4407,7 +4515,7 @@ void ULowEntryExtendedStandardLibrary::GetClassWithName(const FString& ClassName
 	}// load class <<
 
 	{// get class >>
-		UClass* FoundClass = FindObject<UClass>(ANY_PACKAGE, *ClassName);
+		UClass* FoundClass = FindFirstObject<UClass>(*ClassName);
 		if (FoundClass != nullptr)
 		{
 			Class_ = FoundClass;
@@ -4417,7 +4525,7 @@ void ULowEntryExtendedStandardLibrary::GetClassWithName(const FString& ClassName
 	}// get class <<
 
 	{// get class through redirector >>
-		UObjectRedirector* RenamedClassRedirector = FindObject<UObjectRedirector>(ANY_PACKAGE, *ClassName);
+		UObjectRedirector* RenamedClassRedirector = FindFirstObject<UObjectRedirector>(*ClassName);
 		if ((RenamedClassRedirector != nullptr) && (RenamedClassRedirector->DestinationObject != nullptr))
 		{
 			UClass* FoundClass = CastChecked<UClass>(RenamedClassRedirector->DestinationObject);

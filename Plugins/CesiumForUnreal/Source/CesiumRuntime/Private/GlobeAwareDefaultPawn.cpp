@@ -1,30 +1,58 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "GlobeAwareDefaultPawn.h"
 #include "Camera/CameraComponent.h"
 #include "CesiumActors.h"
 #include "CesiumCustomVersion.h"
+#include "CesiumFlyToComponent.h"
 #include "CesiumGeoreference.h"
-#include "CesiumGeospatial/Ellipsoid.h"
-#include "CesiumGeospatial/Transforms.h"
 #include "CesiumGlobeAnchorComponent.h"
 #include "CesiumRuntime.h"
 #include "CesiumTransforms.h"
 #include "CesiumUtility/Math.h"
+#include "CesiumWgs84Ellipsoid.h"
+#include "Curves/CurveFloat.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "UObject/ConstructorHelpers.h"
 #include "VecMath.h"
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/vector_double3.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/rotate_vector.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
 
 AGlobeAwareDefaultPawn::AGlobeAwareDefaultPawn() : ADefaultPawn() {
-  PrimaryActorTick.bCanEverTick = true;
+  // Structure to hold one-time initialization
+  struct FConstructorStatics {
+    ConstructorHelpers::FObjectFinder<UCurveFloat> ProgressCurve;
+    ConstructorHelpers::FObjectFinder<UCurveFloat> HeightPercentageCurve;
+    ConstructorHelpers::FObjectFinder<UCurveFloat> MaximumHeightByDistanceCurve;
+    FConstructorStatics()
+        : ProgressCurve(TEXT(
+              "/CesiumForUnreal/Curves/FlyTo/Curve_CesiumFlyToDefaultProgress_Float.Curve_CesiumFlyToDefaultProgress_Float")),
+          HeightPercentageCurve(TEXT(
+              "/CesiumForUnreal/Curves/FlyTo/Curve_CesiumFlyToDefaultHeightPercentage_Float.Curve_CesiumFlyToDefaultHeightPercentage_Float")),
+          MaximumHeightByDistanceCurve(TEXT(
+              "/CesiumForUnreal/Curves/FlyTo/Curve_CesiumFlyToDefaultMaximumHeightByDistance_Float.Curve_CesiumFlyToDefaultMaximumHeightByDistance_Float")) {
+    }
+  };
+  static FConstructorStatics ConstructorStatics;
 
+  this->FlyToProgressCurve_DEPRECATED = ConstructorStatics.ProgressCurve.Object;
+  this->FlyToAltitudeProfileCurve_DEPRECATED =
+      ConstructorStatics.HeightPercentageCurve.Object;
+  this->FlyToMaximumAltitudeCurve_DEPRECATED =
+      ConstructorStatics.MaximumHeightByDistanceCurve.Object;
+
+#if WITH_EDITOR
+  this->SetIsSpatiallyLoaded(false);
+#endif
   this->GlobeAnchor =
       CreateDefaultSubobject<UCesiumGlobeAnchorComponent>(TEXT("GlobeAnchor"));
 }
@@ -38,24 +66,42 @@ void AGlobeAwareDefaultPawn::MoveForward(float Val) {
 }
 
 void AGlobeAwareDefaultPawn::MoveUp_World(float Val) {
-  if (Val == 0.0f || !IsValid(this->GlobeAnchor)) {
+  if (Val == 0.0f) {
     return;
   }
 
-  glm::dvec4 upEcef(
-      CesiumGeospatial::Ellipsoid::WGS84.geodeticSurfaceNormal(
-          VecMath::createVector3D(this->GlobeAnchor->GetECEF())),
-      0.0);
-  glm::dvec4 up = this->GlobeAnchor->ResolveGeoreference()
-                      ->GetGeoTransforms()
-                      .GetEllipsoidCenteredToAbsoluteUnrealWorldTransform() *
-                  upEcef;
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!IsValid(pGeoreference)) {
+    return;
+  }
 
-  this->_moveAlongVector(FVector(up.x, up.y, up.z), Val);
+  UCesiumEllipsoid* pEllipsoid = pGeoreference->GetEllipsoid();
+  check(IsValid(pEllipsoid));
+
+  FVector upEcef = pEllipsoid->GeodeticSurfaceNormal(
+      this->GlobeAnchor->GetEarthCenteredEarthFixedPosition());
+  FVector up =
+      pGeoreference->TransformEarthCenteredEarthFixedDirectionToUnreal(upEcef);
+
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld();
+    }
+  }
+
+  this->_moveAlongVector(transform.TransformVector(up), Val);
 }
 
 FRotator AGlobeAwareDefaultPawn::GetViewRotation() const {
   if (!Controller) {
+    return this->GetActorRotation();
+  }
+
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!pGeoreference) {
     return this->GetActorRotation();
   }
 
@@ -69,121 +115,36 @@ FRotator AGlobeAwareDefaultPawn::GetViewRotation() const {
   // the right (clockwise).
   FRotator localRotation = Controller->GetControlRotation();
 
-  // Transform the rotation in the ESU frame to the Unreal world frame.
-  FMatrix enuAdjustmentMatrix =
-      this->GetGeoreference()->ComputeEastNorthUpToUnreal(
-          this->GetPawnViewLocation());
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld();
+    }
+  }
 
-  return FRotator(enuAdjustmentMatrix.ToQuat() * localRotation.Quaternion());
+  // Transform the rotation in the ESU frame to the Unreal world frame.
+  FVector globePosition =
+      transform.InverseTransformPosition(this->GetPawnViewLocation());
+  FMatrix esuAdjustmentMatrix =
+      pGeoreference->ComputeEastSouthUpToUnrealTransformation(globePosition) *
+      transform.ToMatrixNoScale();
+
+  return FRotator(esuAdjustmentMatrix.ToQuat() * localRotation.Quaternion());
 }
 
 FRotator AGlobeAwareDefaultPawn::GetBaseAimRotation() const {
   return this->GetViewRotation();
 }
 
-void AGlobeAwareDefaultPawn::FlyToLocationECEF(
-    const glm::dvec3& ECEFDestination,
-    double YawAtDestination,
-    double PitchAtDestination,
-    bool CanInterruptByMoving) {
-
-  if (this->_bFlyingToLocation) {
-    return;
+const FTransform&
+AGlobeAwareDefaultPawn::GetGlobeToUnrealWorldTransform() const {
+  AActor* pParent = this->GetAttachParentActor();
+  if (IsValid(pParent)) {
+    return pParent->GetActorTransform();
   }
-
-  PitchAtDestination = glm::clamp(PitchAtDestination, -89.99, 89.99);
-  // Compute source location in ECEF
-  glm::dvec3 ECEFSource = VecMath::createVector3D(this->GlobeAnchor->GetECEF());
-
-  // The source and destination rotations are expressed in East-South-Up
-  // coordinates.
-  this->_flyToSourceRotation = Controller->GetControlRotation().Quaternion();
-  this->_flyToDestinationRotation =
-      FRotator(PitchAtDestination, YawAtDestination, 0).Quaternion();
-
-  // Compute axis/Angle transform and initialize key points
-  glm::dquat flyQuat = glm::rotation(
-      glm::normalize(ECEFSource),
-      glm::normalize(ECEFDestination));
-  double flyTotalAngle = glm::angle(flyQuat);
-  glm::dvec3 flyRotationAxis = glm::axis(flyQuat);
-  int steps = glm::max(
-      int(flyTotalAngle / glm::radians(this->FlyToGranularityDegrees)) - 1,
-      0);
-  this->_keypoints.clear();
-  this->_currentFlyTime = 0.0;
-
-  if (flyTotalAngle == 0.0 &&
-      this->_flyToSourceRotation == this->_flyToDestinationRotation) {
-    return;
-  }
-
-  // We will not create a curve projected along the ellipsoid as we want to take
-  // altitude while flying. The radius of the current point will evolve as
-  // follow
-  //  - Project the point on the ellipsoid - Will give a default radius
-  //  depending on ellipsoid location.
-  //  - Interpolate the altitudes : get source/destination altitude, and make a
-  //  linear interpolation between them. This will allow for flying from/to any
-  //  point smoothly.
-  //  - Add as flightProfile offset /-\ defined by a curve.
-
-  // Compute global radius at source and destination points
-  double sourceRadius = glm::length(ECEFSource);
-  glm::dvec3 sourceUpVector = ECEFSource;
-
-  // Compute actual altitude at source and destination points by scaling on
-  // ellipsoid.
-  double sourceAltitude = 0.0, destinationAltitude = 0.0;
-  const CesiumGeospatial::Ellipsoid& ellipsoid =
-      CesiumGeospatial::Ellipsoid::WGS84;
-  if (auto scaled = ellipsoid.scaleToGeodeticSurface(ECEFSource)) {
-    sourceAltitude = glm::length(ECEFSource - *scaled);
-  }
-  if (auto scaled = ellipsoid.scaleToGeodeticSurface(ECEFDestination)) {
-    destinationAltitude = glm::length(ECEFDestination - *scaled);
-  }
-
-  // Get distance between source and destination points to compute a wanted
-  // altitude from curve
-  double flyToDistance = glm::length(ECEFDestination - ECEFSource);
-
-  // Add first keypoint
-  this->_keypoints.push_back(ECEFSource);
-
-  for (int step = 1; step <= steps; step++) {
-    double percentage = (double)step / (steps + 1);
-    double altitude = glm::mix(sourceAltitude, destinationAltitude, percentage);
-    double phi =
-        glm::radians(this->FlyToGranularityDegrees * static_cast<double>(step));
-
-    glm::dvec3 rotated = glm::rotate(sourceUpVector, phi, flyRotationAxis);
-    if (auto scaled = ellipsoid.scaleToGeodeticSurface(rotated)) {
-      glm::dvec3 upVector = glm::normalize(*scaled);
-
-      // Add an altitude if we have a profile curve for it
-      double offsetAltitude = 0;
-      if (this->FlyToAltitudeProfileCurve != NULL) {
-        double maxAltitude = 30000;
-        if (this->FlyToMaximumAltitudeCurve != NULL) {
-          maxAltitude =
-              this->FlyToMaximumAltitudeCurve->GetFloatValue(flyToDistance);
-        }
-        offsetAltitude =
-            maxAltitude *
-            this->FlyToAltitudeProfileCurve->GetFloatValue(percentage);
-      }
-
-      glm::dvec3 point = *scaled + upVector * (altitude + offsetAltitude);
-      this->_keypoints.push_back(point);
-    }
-  }
-
-  this->_keypoints.push_back(ECEFDestination);
-
-  // Tell the tick we will be flying from now
-  this->_bFlyingToLocation = true;
-  this->_bCanInterruptFlight = CanInterruptByMoving;
+  return FTransform::Identity;
 }
 
 void AGlobeAwareDefaultPawn::FlyToLocationECEF(
@@ -191,138 +152,67 @@ void AGlobeAwareDefaultPawn::FlyToLocationECEF(
     double YawAtDestination,
     double PitchAtDestination,
     bool CanInterruptByMoving) {
-
-  this->FlyToLocationECEF(
-      glm::dvec3(ECEFDestination.X, ECEFDestination.Y, ECEFDestination.Z),
-      YawAtDestination,
-      PitchAtDestination,
-      CanInterruptByMoving);
-}
-
-void AGlobeAwareDefaultPawn::FlyToLocationLongitudeLatitudeHeight(
-    const glm::dvec3& LongitudeLatitudeHeightDestination,
-    double YawAtDestination,
-    double PitchAtDestination,
-    bool CanInterruptByMoving) {
-
-  if (!IsValid(this->GetGeoreference())) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo)) {
     UE_LOG(
         LogCesium,
         Warning,
-        TEXT("GlobeAwareDefaultPawn %s does not have a valid Georeference"),
-        *this->GetName());
+        TEXT(
+            "Cannot call deprecated FlyToLocationLongitudeLatitudeHeight because the GlobeAwareDefaultPawn does not have a CesiumFlyToComponent."))
+    return;
   }
-  const glm::dvec3& ecef =
-      this->GetGeoreference()->TransformLongitudeLatitudeHeightToEcef(
-          LongitudeLatitudeHeightDestination);
-  this->FlyToLocationECEF(
-      ecef,
+
+  // Make sure functions attached to the deprecated delegates will be called.
+  FlyTo->OnFlightComplete.AddUniqueDynamic(
+      this,
+      &AGlobeAwareDefaultPawn::_onFlightComplete);
+  FlyTo->OnFlightInterrupted.AddUniqueDynamic(
+      this,
+      &AGlobeAwareDefaultPawn::_onFlightInterrupted);
+
+  FlyTo->FlyToLocationEarthCenteredEarthFixed(
+      ECEFDestination,
       YawAtDestination,
       PitchAtDestination,
       CanInterruptByMoving);
 }
 
-UFUNCTION(BlueprintCallable)
 void AGlobeAwareDefaultPawn::FlyToLocationLongitudeLatitudeHeight(
     const FVector& LongitudeLatitudeHeightDestination,
     double YawAtDestination,
     double PitchAtDestination,
     bool CanInterruptByMoving) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo)) {
+    UE_LOG(
+        LogCesium,
+        Warning,
+        TEXT(
+            "Cannot call deprecated FlyToLocationLongitudeLatitudeHeight because the GlobeAwareDefaultPawn does not have a CesiumFlyToComponent."))
+    return;
+  }
 
-  this->FlyToLocationLongitudeLatitudeHeight(
-      VecMath::createVector3D(LongitudeLatitudeHeightDestination),
+  // Make sure functions attached to the deprecated delegates will be called.
+  FlyTo->OnFlightComplete.AddUniqueDynamic(
+      this,
+      &AGlobeAwareDefaultPawn::_onFlightComplete);
+  FlyTo->OnFlightInterrupted.AddUniqueDynamic(
+      this,
+      &AGlobeAwareDefaultPawn::_onFlightInterrupted);
+
+  FlyTo->FlyToLocationLongitudeLatitudeHeight(
+      LongitudeLatitudeHeightDestination,
       YawAtDestination,
       PitchAtDestination,
       CanInterruptByMoving);
 }
 
-bool AGlobeAwareDefaultPawn::ShouldTickIfViewportsOnly() const { return true; }
+void AGlobeAwareDefaultPawn::Serialize(FArchive& Ar) {
+  Super::Serialize(Ar);
 
-void AGlobeAwareDefaultPawn::_handleFlightStep(float DeltaSeconds) {
-  if (!IsValid(this->GlobeAnchor)) {
-    UE_LOG(
-        LogCesium,
-        Warning,
-        TEXT(
-            "GlobeAwareDefaultPawn %s does not have a valid GeoreferenceComponent"),
-        *this->GetName());
-    return;
-  }
-
-  if (!this->GetWorld()->IsGameWorld() || !this->_bFlyingToLocation) {
-    return;
-  }
-
-  if (!Controller) {
-    return;
-  }
-
-  this->_currentFlyTime += static_cast<double>(DeltaSeconds);
-
-  // double check that we don't have an empty list of keypoints
-  if (this->_keypoints.size() == 0) {
-    this->_bFlyingToLocation = false;
-    return;
-  }
-
-  // If we reached the end, set actual destination location and orientation
-  if (this->_currentFlyTime >= this->FlyToDuration) {
-    const glm::dvec3& finalPoint = _keypoints.back();
-    this->GlobeAnchor->MoveToECEF(finalPoint);
-    Controller->SetControlRotation(this->_flyToDestinationRotation.Rotator());
-    this->_bFlyingToLocation = false;
-    this->_currentFlyTime = 0.0;
-
-    // Trigger callback accessible from BP
-    UE_LOG(LogCesium, Verbose, TEXT("Broadcasting OnFlightComplete"));
-    OnFlightComplete.Broadcast();
-
-    return;
-  }
-
-  // We're currently in flight. Interpolate the position and orientation:
-
-  double rawPercentage = this->_currentFlyTime / this->FlyToDuration;
-
-  // In order to accelerate at start and slow down at end, we use a progress
-  // profile curve
-  double flyPercentage = rawPercentage;
-  if (this->FlyToProgressCurve != NULL) {
-    flyPercentage = glm::clamp(
-        static_cast<double>(
-            this->FlyToProgressCurve->GetFloatValue(rawPercentage)),
-        0.0,
-        1.0);
-  }
-
-  // Find the keypoint indexes corresponding to the current percentage
-  int lastIndex = static_cast<int>(
-      glm::floor(flyPercentage * (this->_keypoints.size() - 1)));
-  double segmentPercentage =
-      flyPercentage * (this->_keypoints.size() - 1) - lastIndex;
-  int nextIndex = lastIndex + 1;
-
-  // Get the current position by interpolating linearly between those two points
-  const glm::dvec3& lastPosition = this->_keypoints[lastIndex];
-  const glm::dvec3& nextPosition = this->_keypoints[nextIndex];
-  glm::dvec3 currentPosition =
-      glm::mix(lastPosition, nextPosition, segmentPercentage);
-  // Set Location
-  this->GlobeAnchor->MoveToECEF(currentPosition);
-
-  // Interpolate rotation in the ESU frame. The local ESU ControlRotation will
-  // be transformed to the appropriate world rotation as we fly.
-  FQuat currentQuat = FQuat::Slerp(
-      this->_flyToSourceRotation,
-      this->_flyToDestinationRotation,
-      flyPercentage);
-  Controller->SetControlRotation(currentQuat.Rotator());
-}
-
-void AGlobeAwareDefaultPawn::Tick(float DeltaSeconds) {
-  Super::Tick(DeltaSeconds);
-
-  _handleFlightStep(DeltaSeconds);
+  Ar.UsingCustomVersion(FCesiumCustomVersion::GUID);
 }
 
 void AGlobeAwareDefaultPawn::PostLoad() {
@@ -340,6 +230,43 @@ void AGlobeAwareDefaultPawn::PostLoad() {
       this->GlobeAnchor->SetGeoreference(this->Georeference_DEPRECATED);
     }
   }
+
+#if WITH_EDITOR
+  if (CesiumVersion < FCesiumCustomVersion::FlyToComponent &&
+      !HasAnyFlags(RF_ClassDefaultObject)) {
+    // If this is a Blueprint object, like DynamicPawn, its construction
+    // scripts may not have been run yet at this point. Doing so might cause
+    // a Fly To component to be added. So we force it to happen here so
+    // that we don't end up adding a duplicate CesiumFlyToComponent.
+    this->RerunConstructionScripts();
+
+    UCesiumFlyToComponent* FlyTo =
+        this->FindComponentByClass<UCesiumFlyToComponent>();
+    if (!FlyTo) {
+      FlyTo = Cast<UCesiumFlyToComponent>(this->AddComponentByClass(
+          UCesiumFlyToComponent::StaticClass(),
+          false,
+          FTransform::Identity,
+          false));
+      FlyTo->SetFlags(RF_Transactional);
+      this->AddInstanceComponent(FlyTo);
+
+      UE_LOG(
+          LogCesium,
+          Warning,
+          TEXT(
+              "Added CesiumFlyToComponent to %s in order to preserve backward compatibility."),
+          *this->GetName());
+    }
+
+    FlyTo->RotationToUse = ECesiumFlyToRotation::ControlRotationInEastSouthUp;
+    FlyTo->ProgressCurve = this->FlyToProgressCurve_DEPRECATED;
+    FlyTo->HeightPercentageCurve = this->FlyToAltitudeProfileCurve_DEPRECATED;
+    FlyTo->MaximumHeightByDistanceCurve =
+        this->FlyToMaximumAltitudeCurve_DEPRECATED;
+    FlyTo->Duration = this->FlyToDuration_DEPRECATED;
+  }
+#endif
 }
 
 ACesiumGeoreference* AGlobeAwareDefaultPawn::GetGeoreference() const {
@@ -347,11 +274,93 @@ ACesiumGeoreference* AGlobeAwareDefaultPawn::GetGeoreference() const {
     UE_LOG(
         LogCesium,
         Error,
-        TEXT("GlobeAwareDefaultPawn %s does not have a GlobeAnchorComponent"),
+        TEXT(
+            "GlobeAwareDefaultPawn %s does not have a valid GlobeAnchorComponent."),
         *this->GetName());
     return nullptr;
   }
-  return this->GlobeAnchor->ResolveGeoreference();
+
+  ACesiumGeoreference* pGeoreference = this->GlobeAnchor->ResolveGeoreference();
+  if (!IsValid(pGeoreference)) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT(
+            "GlobeAwareDefaultPawn %s does not have a valid CesiumGeoreference."),
+        *this->GetName());
+    pGeoreference = nullptr;
+  }
+
+  return pGeoreference;
+}
+
+UCurveFloat* AGlobeAwareDefaultPawn::GetFlyToProgressCurve_DEPRECATED() const {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return nullptr;
+  return FlyTo->ProgressCurve;
+}
+
+void AGlobeAwareDefaultPawn::SetFlyToProgressCurve_DEPRECATED(
+    UCurveFloat* NewValue) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return;
+  FlyTo->ProgressCurve = NewValue;
+}
+
+UCurveFloat*
+AGlobeAwareDefaultPawn::GetFlyToAltitudeProfileCurve_DEPRECATED() const {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return nullptr;
+  return FlyTo->HeightPercentageCurve;
+}
+
+void AGlobeAwareDefaultPawn::SetFlyToAltitudeProfileCurve_DEPRECATED(
+    UCurveFloat* NewValue) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return;
+  FlyTo->HeightPercentageCurve = NewValue;
+}
+
+UCurveFloat*
+AGlobeAwareDefaultPawn::GetFlyToMaximumAltitudeCurve_DEPRECATED() const {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return nullptr;
+  return FlyTo->MaximumHeightByDistanceCurve;
+}
+
+void AGlobeAwareDefaultPawn::SetFlyToMaximumAltitudeCurve_DEPRECATED(
+    UCurveFloat* NewValue) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return;
+  FlyTo->MaximumHeightByDistanceCurve = NewValue;
+}
+
+float AGlobeAwareDefaultPawn::GetFlyToDuration_DEPRECATED() const {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return 0.0f;
+  return FlyTo->Duration;
+}
+
+void AGlobeAwareDefaultPawn::SetFlyToDuration_DEPRECATED(float NewValue) {
+  UCesiumFlyToComponent* FlyTo =
+      this->FindComponentByClass<UCesiumFlyToComponent>();
+  if (!IsValid(FlyTo))
+    return;
+  FlyTo->Duration = NewValue;
 }
 
 void AGlobeAwareDefaultPawn::_moveAlongViewAxis(EAxis::Type axis, double Val) {
@@ -374,25 +383,12 @@ void AGlobeAwareDefaultPawn::_moveAlongVector(
 
   FRotator worldRotation = this->GetViewRotation();
   AddMovementInput(vector, Val);
-
-  if (this->_bFlyingToLocation && this->_bCanInterruptFlight) {
-    this->_interruptFlight();
-  }
 }
 
-void AGlobeAwareDefaultPawn::_interruptFlight() {
-  if (!Controller) {
-    return;
-  }
+void AGlobeAwareDefaultPawn::_onFlightComplete() {
+  this->OnFlightComplete_DEPRECATED.Broadcast();
+}
 
-  this->_bFlyingToLocation = false;
-
-  // fix camera roll to 0.0
-  FRotator currentRotator = Controller->GetControlRotation();
-  currentRotator.Roll = 0.0;
-  Controller->SetControlRotation(currentRotator);
-
-  // Trigger callback accessible from BP
-  UE_LOG(LogCesium, Verbose, TEXT("Broadcasting OnFlightInterrupt"));
-  OnFlightInterrupt.Broadcast();
+void AGlobeAwareDefaultPawn::_onFlightInterrupted() {
+  this->OnFlightInterrupt_DEPRECATED.Broadcast();
 }

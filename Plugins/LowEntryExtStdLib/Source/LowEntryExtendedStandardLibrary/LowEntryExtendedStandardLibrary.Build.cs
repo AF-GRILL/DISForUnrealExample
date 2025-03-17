@@ -5,7 +5,9 @@ public class LowEntryExtendedStandardLibrary : ModuleRules
 {
 	public LowEntryExtendedStandardLibrary(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
+		PCHUsage = PCHUsageMode.NoPCHs;
+		bUseUnity = false;
 
 		PublicIncludePaths.AddRange(
 			new string[]
@@ -40,6 +42,7 @@ public class LowEntryExtendedStandardLibrary : ModuleRules
 				"CoreUObject",
 				"Slate",
 				"SlateCore",
+				"StructUtils",
 				"ImageWrapper",
 				"Media",
 				"MediaAssets",

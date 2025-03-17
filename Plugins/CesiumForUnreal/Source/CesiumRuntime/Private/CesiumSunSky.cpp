@@ -1,9 +1,11 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "CesiumSunSky.h"
 #include "CesiumCustomVersion.h"
 #include "CesiumGlobeAnchorComponent.h"
 #include "CesiumRuntime.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "SunPosition.h"
 #include "TimerManager.h"
@@ -20,7 +22,7 @@
 // spheroid, where the radius at the poles is ~21km less than the radius at the
 // equator. And on top of that, there's terrain, causing bumps of up to 8km or
 // so (Mount Everest). Mean Sea Level is nowhere more than 100 meters different
-// from the WGS84 ellipsoid, and the lowest dry land point on Earth is the Dead
+// from the ellipsoid, and the lowest dry land point on Earth is the Dead
 // Sea at about 432 meters below sea level. So all up, the worst case "ground
 // radius" for atmosphere purposes ranges from about 6356km to about 6387km
 // depending on where you are on Earth. That's a range of 31km, which definitely
@@ -32,17 +34,21 @@
 //  large, or else there will be a gap between the bottom of the atmosphere and
 //  the top of the terrain. To avoid that, we want to use a tight fitting globe
 //  radius that approximates mean sea level at the camera's position and is
-//  guaranteed to be below it. Rather than actually calculate sea level, a WGS84
-//  height of -100meters will be close enough.
+//  guaranteed to be below it. Rather than actually calculate sea level, an
+//  ellipsoid height of -100meters will be close enough.
 //  * When far from the surface, we can see a lot of the Earth, and it's
-//  essential that no bits of the surface extend into the atmosphere, because
+//  essential that no bits of the surface extend outside the atmosphere, because
 //  that creates a very distracting artifact. So we want to choose a globe
 //  radius that is guaranteed to encapsulate all visible parts of the globe.
 //  * In between these two extremes, we need to blend smoothly.
 
 // Sets default values
-ACesiumSunSky::ACesiumSunSky() {
+ACesiumSunSky::ACesiumSunSky() : AActor() {
   PrimaryActorTick.bCanEverTick = true;
+
+#if WITH_EDITOR
+  this->SetIsSpatiallyLoaded(false);
+#endif
 
   Scene = CreateDefaultSubobject<USceneComponent>(TEXT("Scene"));
   SetRootComponent(Scene);
@@ -56,24 +62,16 @@ ACesiumSunSky::ACesiumSunSky() {
   DirectionalLight->CascadeDistributionExponent = 2.0;
   DirectionalLight->DynamicShadowDistanceMovableLight = 500000.f;
 
-#if ENGINE_MAJOR_VERSION >= 5
   // We need to set both of these, because in the case of a pre-UE5 asset, UE5
   // will replace the normal atmosphere sun light flag with the value of the
   // deprecated one on load.
   DirectionalLight->bUsedAsAtmosphereSunLight_DEPRECATED = true;
   DirectionalLight->SetAtmosphereSunLight(true);
-#else
-  DirectionalLight->bUsedAsAtmosphereSunLight = true;
-#endif
 
-  // The location of the DirectionalLight should never matter, but by making it
-  // absolute we do less math when the Actor moves as a result of the
-  // GlobeAnchorComponent.
-  DirectionalLight->SetUsingAbsoluteLocation(true);
-  DirectionalLight->SetWorldLocation(FVector(0, 0, 0));
+  DirectionalLight->SetRelativeLocation(FVector(0, 0, 0));
 
   if (!SkySphereClass) {
-    ConstructorHelpers::FClassFinder<AActor> skySphereFinder(
+    static ConstructorHelpers::FClassFinder<AActor> skySphereFinder(
         TEXT("Blueprint'/CesiumForUnreal/MobileSkySphere.MobileSkySphere_C'"));
     if (skySphereFinder.Succeeded()) {
       SkySphereClass = skySphereFinder.Class;
@@ -89,14 +87,10 @@ ACesiumSunSky::ACesiumSunSky() {
   SkyLight->bTransmission = true;
   SkyLight->SamplesPerPixel = 2;
 
-#if ENGINE_MAJOR_VERSION >= 5
   SkyLight->CastRaytracedShadow = ECastRayTracedShadow::Enabled;
-#else
-  SkyLight->bCastRaytracedShadow = true;
-#endif
 
-  // The Sky Light is fixed at the Georeference origin.
-  // TODO: should it follow the player?
+  // Initially put the SkyLight at the world origin.
+  // This is updated in UpdateSun.
   SkyLight->SetUsingAbsoluteLocation(true);
   SkyLight->SetWorldLocation(FVector(0, 0, 0));
 
@@ -108,10 +102,11 @@ ACesiumSunSky::ACesiumSunSky() {
   SkyAtmosphere->SetupAttachment(Scene);
   SkyAtmosphere->TransformMode =
       ESkyAtmosphereTransformMode::PlanetCenterAtComponentTransform;
+  SkyAtmosphere->TransmittanceMinLightElevationAngle = 90.0f;
 
   this->GlobeAnchor =
       CreateDefaultSubobject<UCesiumGlobeAnchorComponent>(TEXT("GlobeAnchor"));
-  this->GlobeAnchor->AdjustOrientationForGlobeWhenMoving = false;
+  this->GlobeAnchor->SetAdjustOrientationForGlobeWhenMoving(false);
 }
 
 void ACesiumSunSky::_handleTransformUpdated(
@@ -133,7 +128,10 @@ void ACesiumSunSky::OnConstruction(const FTransform& Transform) {
       TEXT("Called OnConstruction for CesiumSunSky %s"),
       *this->GetName());
 
-  this->GlobeAnchor->MoveToECEF(glm::dvec3(0.0, 0.0, 0.0));
+  if (IsValid(this->GlobeAnchor)) {
+    this->GlobeAnchor->MoveToEarthCenteredEarthFixedPosition(
+        FVector(0.0, 0.0, 0.0));
+  }
 
   UE_LOG(
       LogCesium,
@@ -152,16 +150,18 @@ void ACesiumSunSky::OnConstruction(const FTransform& Transform) {
 }
 
 void ACesiumSunSky::_spawnSkySphere() {
-  if (!UseMobileRendering || !IsValid(GetWorld())) {
+  UWorld* pWorld = GetWorld();
+  if (!UseMobileRendering || !IsValid(pWorld)) {
     return;
   }
 
-  if (!IsValid(this->GetGeoreference())) {
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!IsValid(pGeoreference)) {
     return;
   }
 
   // Create a new Sky Sphere Actor and anchor it to the center of the Earth.
-  this->SkySphereActor = GetWorld()->SpawnActor<AActor>(SkySphereClass);
+  this->SkySphereActor = pWorld->SpawnActor<AActor>(SkySphereClass);
 
   // Anchor it to the center of the Earth.
   UCesiumGlobeAnchorComponent* GlobeAnchorComponent =
@@ -169,17 +169,24 @@ void ACesiumSunSky::_spawnSkySphere() {
           SkySphereActor,
           TEXT("GlobeAnchor"));
   this->SkySphereActor->AddInstanceComponent(GlobeAnchorComponent);
-  GlobeAnchorComponent->AdjustOrientationForGlobeWhenMoving = false;
-  GlobeAnchorComponent->SetGeoreference(this->GlobeAnchor->GetGeoreference());
-  GlobeAnchorComponent->MoveToECEF(glm::dvec3(0.0, 0.0, 0.0));
+  GlobeAnchorComponent->SetAdjustOrientationForGlobeWhenMoving(false);
+  GlobeAnchorComponent->SetGeoreference(pGeoreference);
+  GlobeAnchorComponent->MoveToEarthCenteredEarthFixedPosition(
+      FVector(0.0, 0.0, 0.0));
 
   _wantsSpawnMobileSkySphere = false;
 
   _setSkySphereDirectionalLight();
 }
 
+double ACesiumSunSky::_computeScale() const {
+  // The SkyAtmosphere is not affected by Actor scaling, so we do it manually.
+  FVector actorScale = this->GetActorScale();
+  return actorScale.GetMax();
+}
+
 void ACesiumSunSky::UpdateSkySphere() {
-  if (!UseMobileRendering || !SkySphereActor) {
+  if (!UseMobileRendering || !IsValid(SkySphereActor)) {
     return;
   }
   UFunction* UpdateSkySphere =
@@ -192,7 +199,10 @@ void ACesiumSunSky::UpdateSkySphere() {
 void ACesiumSunSky::BeginPlay() {
   Super::BeginPlay();
 
-  this->GlobeAnchor->MoveToECEF(glm::dvec3(0.0, 0.0, 0.0));
+  if (IsValid(this->GlobeAnchor)) {
+    this->GlobeAnchor->MoveToEarthCenteredEarthFixedPosition(
+        FVector(0.0, 0.0, 0.0));
+  }
 
   this->_transformUpdatedSubscription =
       this->RootComponent->TransformUpdated.AddUObject(
@@ -247,6 +257,39 @@ void ACesiumSunSky::Tick(float DeltaSeconds) {
 
   if (this->UpdateAtmosphereAtRuntime) {
     this->UpdateAtmosphereRadius();
+  }
+
+  if (IsValid(this->SkyAtmosphere)) {
+    double scale = this->_computeScale();
+
+    float atmosphereHeight = float(scale * this->AtmosphereHeight);
+    if (atmosphereHeight != this->SkyAtmosphere->AtmosphereHeight) {
+      this->SkyAtmosphere->SetAtmosphereHeight(atmosphereHeight);
+    }
+
+    float aerialPerspectiveViewDistanceScale =
+        float(this->AerialPerspectiveViewDistanceScale / scale);
+    if (aerialPerspectiveViewDistanceScale !=
+        this->SkyAtmosphere->AerialPespectiveViewDistanceScale) {
+      this->SkyAtmosphere->SetAerialPespectiveViewDistanceScale(
+          aerialPerspectiveViewDistanceScale);
+    }
+
+    float rayleighExponentialDistribution =
+        float(scale * this->RayleighExponentialDistribution);
+    if (rayleighExponentialDistribution !=
+        this->SkyAtmosphere->RayleighExponentialDistribution) {
+      this->SkyAtmosphere->SetRayleighExponentialDistribution(
+          rayleighExponentialDistribution);
+    }
+
+    float mieExponentialDistribution =
+        float(scale * this->MieExponentialDistribution);
+    if (mieExponentialDistribution !=
+        this->SkyAtmosphere->MieExponentialDistribution) {
+      this->SkyAtmosphere->SetMieExponentialDistribution(
+          mieExponentialDistribution);
+    }
   }
 }
 
@@ -358,6 +401,11 @@ ACesiumGeoreference* ACesiumSunSky::GetGeoreference() const {
 }
 
 void ACesiumSunSky::UpdateSun_Implementation() {
+  // Put the Sky Light at the Georeference origin.
+  // TODO: should it follow the player?
+  this->SkyLight->SetUsingAbsoluteLocation(true);
+  this->SkyLight->SetWorldLocation(FVector(0, 0, 0));
+
   bool isDST = this->IsDST(
       this->UseDaylightSavingTime,
       this->DSTStartMonth,
@@ -371,8 +419,8 @@ void ACesiumSunSky::UpdateSun_Implementation() {
 
   FSunPositionData sunPosition;
   USunPositionFunctionLibrary::GetSunPosition(
-      this->GetGeoreference()->OriginLatitude,
-      this->GetGeoreference()->OriginLongitude,
+      this->GetGeoreference()->GetOriginLatitude(),
+      this->GetGeoreference()->GetOriginLongitude(),
       this->TimeZone,
       isDST,
       this->Year,
@@ -392,13 +440,24 @@ void ACesiumSunSky::UpdateSun_Implementation() {
       180.0f + (this->Azimuth + this->NorthOffset),
       0.0f);
 
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld();
+    }
+  }
+
+  FQuat worldRotation = transform.TransformRotation(newRotation.Quaternion());
+
   // Orient sun / directional light
   if (this->UseLevelDirectionalLight && IsValid(this->LevelDirectionalLight) &&
       IsValid(this->LevelDirectionalLight->GetRootComponent())) {
     this->LevelDirectionalLight->GetRootComponent()->SetWorldRotation(
-        newRotation);
+        worldRotation);
   } else {
-    this->DirectionalLight->SetWorldRotation(newRotation);
+    this->DirectionalLight->SetWorldRotation(worldRotation);
   }
 
   // Mobile only
@@ -416,7 +475,7 @@ FVector getViewLocation(UWorld* pWorld) {
     const TArray<FEditorViewportClient*>& viewportClients =
         GEditor->GetAllViewportClients();
     for (FEditorViewportClient* pEditorViewportClient : viewportClients) {
-      if (pEditorViewportClient &&
+      if (pEditorViewportClient && pViewport &&
           pEditorViewportClient == pViewport->GetClient()) {
         return pEditorViewportClient->GetViewLocation();
       }
@@ -436,35 +495,71 @@ FVector getViewLocation(UWorld* pWorld) {
 } // namespace
 
 void ACesiumSunSky::UpdateAtmosphereRadius() {
-  FVector location = getViewLocation(this->GetWorld());
-  glm::dvec3 llh =
-      this->GetGeoreference()->TransformUnrealToLongitudeLatitudeHeight(
-          VecMath::createVector3D(location));
+  UWorld* pWorld = this->GetWorld();
+  if (!IsValid(pWorld)) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT("ACesiumSunSky %s GetWorld() returned nullptr"),
+        *this->GetName());
+    return;
+  }
+
+  // This Actor is located at the center of the Earth (the CesiumGlobeAnchor
+  // keeps it there), so we ignore this Actor's transform and use only its
+  // parent transform.
+  FTransform transform{};
+  USceneComponent* pRootComponent = this->GetRootComponent();
+  if (IsValid(pRootComponent)) {
+    USceneComponent* pParent = pRootComponent->GetAttachParent();
+    if (IsValid(pParent)) {
+      transform = pParent->GetComponentToWorld().Inverse();
+    }
+  }
+
+  ACesiumGeoreference* pGeoreference = this->GetGeoreference();
+  if (!IsValid(pGeoreference)) {
+    UE_LOG(
+        LogCesium,
+        Error,
+        TEXT("ACesiumSunSky %s can't find an ACesiumGeoreference"),
+        *this->GetName());
+    return;
+  }
+
+  UCesiumEllipsoid* pEllipsoid = pGeoreference->GetEllipsoid();
+  check(IsValid(pEllipsoid));
+
+  FVector location = transform.TransformPosition(getViewLocation(pWorld));
+  FVector llh =
+      pGeoreference->TransformUnrealPositionToLongitudeLatitudeHeight(location);
 
   // An atmosphere of this radius should circumscribe all Earth terrain.
-  double maxRadius = 6387000.0;
+  double maxRadius = pEllipsoid->GetMaximumRadius();
 
-  if (llh.z / 1000.0 > this->CircumscribedGroundThreshold) {
-    this->SetSkyAtmosphereGroundRadius(this->SkyAtmosphere, maxRadius / 1000.0);
+  if (llh.Z / 1000.0 > this->CircumscribedGroundThreshold) {
+    this->SetSkyAtmosphereGroundRadius(
+        this->SkyAtmosphere,
+        maxRadius * this->_computeScale() / 1000.0);
   } else {
     // Find the ellipsoid radius 100m below the surface at this location. See
     // the comment at the top of this file.
-    glm::dvec3 ecef = this->GetGeoreference()
-                          ->GetGeoTransforms()
-                          .TransformLongitudeLatitudeHeightToEcef(
-                              glm::dvec3(llh.x, llh.y, -100.0));
+    glm::dvec3 ecef = pEllipsoid->GetNativeEllipsoid().cartographicToCartesian(
+        CesiumGeospatial::Cartographic::fromDegrees(llh.X, llh.Y, -100.0));
     double minRadius = glm::length(ecef);
 
-    if (llh.z / 1000.0 < this->InscribedGroundThreshold) {
+    if (llh.Z / 1000.0 < this->InscribedGroundThreshold) {
       this->SetSkyAtmosphereGroundRadius(
           this->SkyAtmosphere,
-          minRadius / 1000.0);
+          minRadius * this->_computeScale() / 1000.0);
     } else {
       double t =
-          ((llh.z / 1000.0) - this->InscribedGroundThreshold) /
+          ((llh.Z / 1000.0) - this->InscribedGroundThreshold) /
           (this->CircumscribedGroundThreshold - this->InscribedGroundThreshold);
       double radius = glm::mix(minRadius, maxRadius, t);
-      this->SetSkyAtmosphereGroundRadius(this->SkyAtmosphere, radius / 1000.0);
+      this->SetSkyAtmosphereGroundRadius(
+          this->SkyAtmosphere,
+          radius * this->_computeScale() / 1000.0);
     }
   }
 }
@@ -511,8 +606,9 @@ void ACesiumSunSky::SetSkyAtmosphereGroundRadius(
     USkyAtmosphereComponent* Sky,
     double Radius) {
   // Only update if there's a significant change to be made
-  if (Sky && FMath::Abs(Sky->BottomRadius - Radius) > 0.1) {
-    Sky->BottomRadius = Radius;
+  float radiusFloat = float(Radius);
+  if (Sky && !FMath::IsNearlyEqualByULP(radiusFloat, Sky->BottomRadius)) {
+    Sky->BottomRadius = radiusFloat;
     Sky->MarkRenderStateDirty();
     UE_LOG(LogCesium, Verbose, TEXT("GroundRadius now %f"), Sky->BottomRadius);
   }

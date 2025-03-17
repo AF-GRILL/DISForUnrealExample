@@ -1,15 +1,11 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #include "VecMath.h"
 
 #include "CesiumUtility/Math.h"
 #include "Math/Quat.h"
 #include "Math/RotationMatrix.h"
-#include <CesiumGeometry/AxisTransforms.h>
-#include <glm/detail/type_quat.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/rotate_vector.hpp>
-#include <glm/gtx/transform.hpp>
 
 glm::dmat4 VecMath::createMatrix4D(const FMatrix& m) noexcept {
   return glm::dmat4(
@@ -165,10 +161,7 @@ FRotator VecMath::createRotator(const glm::dmat3& m) noexcept {
 }
 
 FRotator VecMath::createRotator(const glm::dquat& q) noexcept {
-  return FRotator(
-      CesiumUtility::Math::radiansToDegrees(pitch(q)),
-      CesiumUtility::Math::radiansToDegrees(yaw(q)),
-      CesiumUtility::Math::radiansToDegrees(roll(q)));
+  return FRotator(FQuat(q.x, q.y, q.z, q.w));
 }
 
 FQuat VecMath::createQuaternion(const glm::dquat& q) noexcept {

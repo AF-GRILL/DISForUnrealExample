@@ -1,0 +1,13 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: absl_layout
+Description: Abseil layout library
+URL: https://abseil.io/
+Version: 20240116
+
+Libs: "-L${libdir}"
+Requires: absl_config = 20240116, absl_core_headers = 20240116, absl_debugging_internal = 20240116, absl_meta = 20240116, absl_strings = 20240116, absl_span = 20240116, absl_utility = 20240116
+Cflags: "-I${includedir}" -Wno-float-conversion -Wno-implicit-float-conversion -Wno-implicit-int-float-conversion -Wno-unknown-warning-option -DNOMINMAX

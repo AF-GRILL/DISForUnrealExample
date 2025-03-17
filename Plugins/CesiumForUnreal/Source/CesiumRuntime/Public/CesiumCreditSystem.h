@@ -1,4 +1,4 @@
-// Copyright 2020-2021 CesiumGS, Inc. and Contributors
+// Copyright 2020-2024 CesiumGS, Inc. and Contributors
 
 #pragma once
 
@@ -8,11 +8,17 @@
 #include "UObject/Class.h"
 #include "UObject/ConstructorHelpers.h"
 #include <memory>
+#include <string>
 #include <unordered_map>
+
+#if WITH_EDITOR
+#include "IAssetViewport.h"
+#include "UnrealEdMisc.h"
+#endif
 
 #include "CesiumCreditSystem.generated.h"
 
-namespace Cesium3DTilesSelection {
+namespace CesiumUtility {
 class CreditSystem;
 }
 
@@ -31,10 +37,14 @@ public:
 
   ACesiumCreditSystem();
 
-  void BeginPlay() override;
+  virtual void BeginPlay() override;
+  virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+  virtual void OnConstruction(const FTransform& Transform) override;
+  virtual void BeginDestroy() override;
 
   UPROPERTY(EditDefaultsOnly, Category = "Cesium")
-  TSubclassOf<UUserWidget> CreditsWidgetClass;
+  TSubclassOf<class UScreenCreditsWidget> CreditsWidgetClass;
 
   /**
    * Whether the credit string has changed since last frame.
@@ -42,20 +52,30 @@ public:
   UPROPERTY(BlueprintReadOnly, Category = "Cesium")
   bool CreditsUpdated = false;
 
+  UPROPERTY(BlueprintReadOnly, Transient, Category = "Cesium")
+  class UScreenCreditsWidget* CreditsWidget;
+
   // Called every frame
   virtual bool ShouldTickIfViewportsOnly() const override;
   virtual void Tick(float DeltaTime) override;
 
-  const std::shared_ptr<Cesium3DTilesSelection::CreditSystem>&
+  const std::shared_ptr<CesiumUtility::CreditSystem>&
   GetExternalCreditSystem() const {
     return _pCreditSystem;
   }
 
-private:
-  static UClass* CesiumCreditSystemBP;
+  void updateCreditsViewport(bool recreateWidget);
+  void removeCreditsFromViewports();
 
-  UPROPERTY()
-  class UScreenCreditsWidget* _creditsWidget;
+#if WITH_EDITOR
+  void OnRedrawLevelEditingViewports(bool);
+  void OnPreBeginPIE(bool bIsSimulating);
+  void OnEndPIE();
+  void OnCleanseEditor();
+#endif
+
+private:
+  static UObject* CesiumCreditSystemBP;
 
   /**
    * A tag that is assigned to Credit Systems when they are created
@@ -64,10 +84,14 @@ private:
   static FName DEFAULT_CREDITSYSTEM_TAG;
 
   // the underlying cesium-native credit system that is managed by this actor.
-  std::shared_ptr<Cesium3DTilesSelection::CreditSystem> _pCreditSystem;
+  std::shared_ptr<CesiumUtility::CreditSystem> _pCreditSystem;
 
   size_t _lastCreditsCount;
 
   FString ConvertHtmlToRtf(std::string html);
   std::unordered_map<std::string, FString> _htmlToRtf;
+
+#if WITH_EDITOR
+  TWeakPtr<IAssetViewport> _pLastEditorViewport;
+#endif
 };

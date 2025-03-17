@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AxisAlignedBox.h"
+#include "BoundingSphere.h"
 #include "CullingResult.h"
 #include "Library.h"
 
@@ -24,7 +26,7 @@ public:
    *
    * @param center The center of the box.
    * @param halfAxes The three orthogonal half-axes of the bounding box.
-   * Equivalently, the transformation matrix to rotate and scale a 0x0x0 cube
+   * Equivalently, the transformation matrix to rotate and scale a 2x2x2 cube
    * centered at the origin.
    *
    * @snippet TestOrientedBoundingBox.cpp Constructor
@@ -49,8 +51,9 @@ public:
   }
 
   /**
-   * @brief Gets the transformation matrix, to rotate and scale the box to the
-   * right position and size.
+   * @brief Gets the three orthogonal half-axes of the bounding box.
+   * Equivalently, the transformation matrix to rotate and scale a 2x2x2 cube
+   * centered at the origin.
    */
   constexpr const glm::dmat3& getHalfAxes() const noexcept {
     return this->_halfAxes;
@@ -97,13 +100,45 @@ public:
   computeDistanceSquaredToPosition(const glm::dvec3& position) const noexcept;
 
   /**
-   * @brief Computes whether the given position is contained within bounding
+   * @brief Computes whether the given position is contained within the bounding
    * box.
    *
    * @param position The position.
    * @return Whether the position is contained within the bounding box.
    */
   bool contains(const glm::dvec3& position) const noexcept;
+
+  /**
+   * @brief Transforms this bounding box to another coordinate system using a
+   * 4x4 matrix.
+   *
+   * @param transformation The transformation.
+   * @return The oriented bounding box in the new coordinate system.
+   */
+  OrientedBoundingBox
+  transform(const glm::dmat4& transformation) const noexcept;
+
+  /**
+   * @brief Converts this oriented bounding box to an axis-aligned bounding box.
+   */
+  AxisAlignedBox toAxisAligned() const noexcept;
+
+  /**
+   * @brief Converts this oriented bounding box to a bounding sphere.
+   */
+  BoundingSphere toSphere() const noexcept;
+
+  /**
+   * @brief Creates an oriented bounding box from the given axis-aligned
+   * bounding box.
+   */
+  static OrientedBoundingBox
+  fromAxisAligned(const AxisAlignedBox& axisAligned) noexcept;
+
+  /**
+   * @brief Creates an oriented bounding box from the given bounding sphere.
+   */
+  static OrientedBoundingBox fromSphere(const BoundingSphere& sphere) noexcept;
 
 private:
   glm::dvec3 _center;
