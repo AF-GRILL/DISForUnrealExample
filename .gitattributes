@@ -1,1 +1,4 @@
 Content/** filter=lfs diff=lfs merge=lfs -text
+Plugins/CesiumForUnreal/Source/ThirdParty/lib/Android-aarch64-Release/libs2.a filter=lfs diff=lfs merge=lfs -text
+Plugins/CesiumForUnreal/Source/ThirdParty/lib/Windows-AMD64-Release/draco.lib filter=lfs diff=lfs merge=lfs -text
+Plugins/CesiumForUnreal/Source/ThirdParty/lib/Windows-AMD64-Release/s2.lib filter=lfs diff=lfs merge=lfs -text
